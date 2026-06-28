@@ -56,7 +56,7 @@ export default function App() {
   const [listening, setListening] = useState(false);
   const [speechSynthesisEnabled, setSpeechSynthesisEnabled] = useState(true);
   const [transcript, setTranscript] = useState("");
-  const [aiResponse, setAiResponse] = useState("Hello! I am ready to monitor and control your local IoT ecosystem. Press Space or click the microphone to speak or just say 'JERRY'.");
+  const [aiResponse, setAiResponse] = useState("Hello! I am ready to monitor and control your local IoT ecosystem. Press Space or click the microphone to speak.");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [manualInput, setManualInput] = useState("");

@@ -22,11 +22,7 @@ cd ~/fydeos-voice-iot-hub
 # Step 3: Install all dependencies
 npm install
 
-# Step 4: Add your Gemini API Key to your local environment
-echo "GEMINI_API_KEY=your_gemini_api_key_here" > .env
-echo "APP_URL=http://localhost:3000" >> .env
-
-# Step 5: Boot the local full-stack server
+# Step 4: Boot the dashboard server (no internet / no external AI keys needed)
 npm run dev`,
     pythonBridge: `import os
 import json

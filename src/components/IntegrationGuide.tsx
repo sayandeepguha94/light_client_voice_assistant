@@ -28,17 +28,7 @@ npm run dev`,
 import json
 import time
 from http.server import SimpleHTTPRequestHandler, HTTPServer
-
-# Import your actual local modules
-import devices
-from tools import (
-    turn_on,
-    turn_off,
-    set_fan_speed,
-    room_on,
-    room_off,
-    get_state,
-)
+import assistant_openai
 
 PORT = 8000
 
@@ -52,31 +42,17 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        # Return all live states of devices
+        # Return status response
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         
         print("\n[Jerry Hub] Received status polling request.")
-        states = {}
-        try:
-            for r in devices.DEVICES:
-                states[r] = {}
-                for d in devices.DEVICES[r]:
-                    val = get_state(r, d)
-                    states[r][d] = val if val is not None else "Unknown"
-            
-            response_data = {
-                "status": "success",
-                "states": states
-            }
-        except Exception as e:
-            print(f"[Jerry Hub] Error querying statuses: {e}")
-            response_data = {
-                "status": "error",
-                "message": str(e)
-            }
+        response_data = {
+            "status": "success",
+            "message": "Assistant bridge is active and ready."
+        }
         self.wfile.write(json.dumps(response_data).encode('utf-8'))
 
     def do_POST(self):
@@ -94,118 +70,37 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
         # Scenario A: Natural Language Query / Spoken Voice Command
         query_text = payload.get("query") or payload.get("text")
         if query_text:
-            print(f" -> Parsing Voice/Text query: \"{query_text}\"")
+            print(f" -> Passing Spoken/Voice query to Assistant: \"{query_text}\"")
             time_init = time.time()
             try:
-                # Import your local OpenAI smart assistant
-                import assistant_openai
-                
-                # Parse intent using the local assistant (which uses OpenAI with local API key)
-                command = assistant_openai.parse_command(query_text)
-                print(f" -> Decoded Jerry Command: {json.dumps(command, indent=2)}")
-                
-                action = command.get("action")
-                room = command.get("room")
-                device = command.get("device")
-                value = command.get("value")
-                nc_message = command.get("nc_message") or "Command processed."
-                
-                # Execute device change locally via Home Assistant tools
-                if action == "turn_on" and room and device:
-                    if get_state(room, device).lower() == "on":
-                        print(f" -> {device} in {room} is already on.")
-                    else:
-                        turn_on(room, device)
-                elif action == "turn_off" and room and device:
-                    if get_state(room, device).lower() == "off":
-                        print(f" -> {device} in {room} is already off.")
-                    else:
-                        turn_off(room, device)
-                elif action == "room_on" and room:
-                    room_on(room)
-                elif action == "room_off" and room:
-                    room_off(room)
-                elif action == "set_fan_speed" and room and device:
-                    set_fan_speed(room, device, value)
+                # Call execute function, storing return value to pass to frontend
+                assistant_response = assistant_openai.execute(query_text)
+                print(f" -> Assistant Response: \"{assistant_response}\"")
                 
                 elapsed = time.time() - time_init
-                print(f" -> NLP Success: {nc_message} ({elapsed:.3f}s)")
+                print(f" -> Execution Success ({elapsed:.3f}s)")
                 
-                # Return structured payload to dashboard so it speaks out the response and updates UI
+                # Return the processed assistant text back to the dashboard frontend
                 response_data = {
                     "status": "success",
-                    "response": nc_message,
-                    "nc_message": nc_message,
-                    "commands": [
-                        {
-                            "room": room,
-                            "device": device,
-                            "action": action,
-                            "value": value
-                        }
-                    ] if action else [],
+                    "response": assistant_response,
+                    "nc_message": assistant_response,
                     "source": "local-openai-assistant"
                 }
             except Exception as e:
-                print(f" -> NLP Error: {e}")
+                print(f" -> Execution Error: {e}")
                 response_data = {
                     "status": "error",
-                    "message": f"Local assistant failed: {str(e)}"
+                    "message": f"Local assistant execution failed: {str(e)}"
                 }
             self.wfile.write(json.dumps(response_data).encode('utf-8'))
             return
 
         # Scenario B: Manual Dashboard Button Control (Toggles, Sliders)
-        device_id = payload.get("deviceId")
-        action = payload.get("action")
-        value = payload.get("value")
-
-        # Extract room and device from device_id "room.deviceKey"
-        room = None
-        device = None
-        if device_id and "." in device_id:
-            room, device = device_id.split(".", 1)
-        elif payload.get("room"):
-            room = payload.get("room")
-            device = payload.get("device")
-
-        result_msg = "No action executed"
-        time_init = time.time()
-        
-        try:
-            if action == "turn_on" and room and device:
-                if get_state(room, device).lower() == "on":
-                    result_msg = f"{device} in {room} is already on."
-                else:
-                    result_msg = turn_on(room, device)
-            elif action == "turn_off" and room and device:
-                if get_state(room, device).lower() == "off":
-                    result_msg = f"{device} in {room} is already off."
-                else:
-                    result_msg = turn_off(room, device)
-            elif action == "room_on" and room:
-                result_msg = room_on(room)
-            elif action == "room_off" and room:
-                result_msg = room_off(room)
-            elif action == "set_fan_speed" and room and device:
-                set_fan_speed(room, device, value)
-                result_msg = f"{room} fan speed set to {value}"
-            
-            elapsed = time.time() - time_init
-            print(f"[Jerry Hub] Manual Action success: {result_msg} ({elapsed:.3f}s)")
-            
-            response_data = {
-                "status": "success",
-                "message": result_msg,
-                "elapsed": f"{elapsed:.3f} seconds"
-            }
-        except Exception as e:
-            print(f"[Jerry Hub] Execution error: {e}")
-            response_data = {
-                "status": "error",
-                "message": str(e)
-            }
-            
+        response_data = {
+            "status": "success",
+            "message": "Manual controls route through assistant_openai."
+        }
         self.wfile.write(json.dumps(response_data).encode('utf-8'))
 
 if __name__ == "__main__":

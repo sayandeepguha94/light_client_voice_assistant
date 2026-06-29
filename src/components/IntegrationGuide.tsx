@@ -91,6 +91,7 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
             print(f"[Jerry Hub] Error querying statuses: {e}")
             response_data = {
                 "status": "error",
+                "response_message": str(e),
                 "message": str(e)
             }
         self.wfile.write(json.dumps(response_data).encode('utf-8'))
@@ -123,7 +124,8 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
                 # Return the processed assistant text back to the dashboard frontend
                 response_data = {
                     "status": "success",
-                    "response": assistant_response,
+                    "response_message": assistant_response,
+                    "message": assistant_response,
                     "nc_message": assistant_response,
                     "source": "local-openai-assistant"
                 }
@@ -131,6 +133,7 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
                 print(f" -> Execution Error: {e}")
                 response_data = {
                     "status": "error",
+                    "response_message": f"Local assistant execution failed: {str(e)}",
                     "message": f"Local assistant execution failed: {str(e)}"
                 }
             self.wfile.write(json.dumps(response_data).encode('utf-8'))
@@ -175,6 +178,7 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
             
             response_data = {
                 "status": "success",
+                "response_message": result_msg,
                 "message": result_msg,
                 "elapsed": f"{elapsed:.3f} seconds"
             }
@@ -182,6 +186,7 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
             print(f"[Jerry Hub] Execution error: {e}")
             response_data = {
                 "status": "error",
+                "response_message": str(e),
                 "message": str(e)
             }
             

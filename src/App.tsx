@@ -477,10 +477,10 @@ export default function App() {
       const responseData = config.useProxy ? result.data : result;
 
       if (responseData && responseData.status === "error") {
-        throw new Error(responseData.message || "Unknown error from local assistant");
+        throw new Error(responseData.response_message || responseData.message || "Unknown error from local assistant");
       }
 
-      const spokenConfirmation = responseData.response || responseData.nc_message || responseData.message || "Command executed successfully.";
+      const spokenConfirmation = responseData.response_message || responseData.message || responseData.response || responseData.nc_message || "Command executed successfully.";
       
       setAiResponse(spokenConfirmation);
       speakText(spokenConfirmation);
@@ -637,7 +637,7 @@ export default function App() {
 
       if (dispatchResponse.ok) {
         const responseData = await dispatchResponse.json();
-        addLog("success", `Dispatched packet safely to local network assistant at ${config.serverIp}!`, responseData.message || "Done");
+        addLog("success", `Dispatched packet safely to local network assistant at ${config.serverIp}!`, responseData.response_message || responseData.message || "Done");
       } else {
         throw new Error(`Device responded with error status ${dispatchResponse.status}`);
       }

@@ -98,6 +98,7 @@ export default function App() {
   const isProcessingRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const hasBeenWokenUpRef = useRef(false);
+  const latestTranscriptRef = useRef<string>("");
 
   // Helper: Log message to dashboard terminal console
   const addLog = (type: SystemLog["type"], message: string, details?: string) => {
@@ -222,23 +223,27 @@ export default function App() {
     if (SpeechRecognition) {
       setSpeechSupported(true);
       const rec = new SpeechRecognition();
-      rec.continuous = false;
-      rec.interimResults = false;
-      rec.lang = "en-US";
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = "en-IN";
 
       rec.onstart = () => {
         setListening(true);
         setTranscript("");
+        latestTranscriptRef.current = "";
         // Play beep only for active triggers, not background wake loop restarts
         if (!wakeWordEnabledRef.current || hasBeenWokenUpRef.current) {
           playBeep(880, 0.12, "sine"); // high beep
         }
-        addLog("info", "Microphone listening stream initialized.");
+        addLog("info", "Microphone listening stream initialized (English - India).");
       };
 
       rec.onresult = (event: any) => {
-        const resultText = event.results[0][0].transcript;
-        const cleanText = resultText.trim();
+        let fullTranscript = "";
+        for (let i = 0; i < event.results.length; i++) {
+          fullTranscript += event.results[i][0].transcript + " ";
+        }
+        const cleanText = fullTranscript.trim();
         const lowerText = cleanText.toLowerCase();
 
         if (wakeWordEnabledRef.current) {
@@ -248,10 +253,12 @@ export default function App() {
 
             if (commandPart.length > 1) {
               setTranscript(cleanText);
+              latestTranscriptRef.current = cleanText;
               addLog("voice", `Wake word + Command detected: "${cleanText}"`);
               handleProcessCommand(commandPart);
             } else {
               setTranscript("Jerry?");
+              latestTranscriptRef.current = "Jerry?";
               addLog("voice", `Wake word detected. Ready for your command!`);
               playBeep(660, 0.1, "sine");
               setTimeout(() => playBeep(880, 0.1, "sine"), 100);
@@ -262,6 +269,7 @@ export default function App() {
           } else if (hasBeenWokenUpRef.current) {
             hasBeenWokenUpRef.current = false;
             setTranscript(cleanText);
+            latestTranscriptRef.current = cleanText;
             addLog("voice", `Command received after wake word: "${cleanText}"`);
             handleProcessCommand(cleanText);
           } else {
@@ -269,15 +277,15 @@ export default function App() {
             addLog("info", `Ambient audio filtered (no wake-word 'Jerry' detected): "${cleanText}"`);
           }
         } else {
+          // Manual tap mode: update live transcript in state and ref, wait for manual stop to submit
           setTranscript(cleanText);
-          addLog("voice", `Voice command detected: "${cleanText}"`);
-          handleProcessCommand(cleanText);
+          latestTranscriptRef.current = cleanText;
         }
       };
 
       rec.onerror = (event: any) => {
         console.error("Speech Recognition error:", event.error);
-        if (event.error !== "no-speech") {
+        if (event.error !== "no-speech" && event.error !== "aborted") {
           addLog("error", `Voice recognition anomaly: ${event.error}`, "Ensure microphone access is enabled in Chrome settings.");
           playBeep(220, 0.25, "triangle"); // low error beep
         }
@@ -286,6 +294,17 @@ export default function App() {
 
       rec.onend = () => {
         setListening(false);
+        
+        // If we are in manual mode (not wake-word) and have a captured transcript, submit it now
+        if (!wakeWordEnabledRef.current) {
+          const commandText = latestTranscriptRef.current.trim();
+          if (commandText) {
+            addLog("voice", `Voice command detected: "${commandText}"`);
+            handleProcessCommand(commandText);
+            latestTranscriptRef.current = ""; // Clear to prevent double triggers
+          }
+        }
+
         // If wake word is enabled and we are not speaking or processing, restart background listener!
         if (wakeWordEnabledRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
           setTimeout(() => {
@@ -466,7 +485,50 @@ export default function App() {
         throw new Error(responseData.message || "Unknown error from local assistant");
       }
 
-      const spokenConfirmation = responseData.response || responseData.nc_message || responseData.message || "Command executed successfully.";
+      let spokenConfirmation = "";
+
+      if (typeof responseData === "string" && responseData.trim() !== "") {
+        spokenConfirmation = responseData.trim();
+      } else if (responseData && typeof responseData === "object") {
+        spokenConfirmation = 
+          responseData.response || 
+          responseData.response_text ||
+          responseData.responseText ||
+          responseData.text ||
+          responseData.reply ||
+          responseData.speech ||
+          responseData.output ||
+          responseData.result ||
+          responseData.nc_message || 
+          responseData.message || 
+          "";
+      }
+
+      // If no textual confirmation was returned but commands were executed, construct a user-friendly response description
+      if (!spokenConfirmation && responseData && typeof responseData === "object") {
+        const cmds = responseData.commands || (responseData.command ? [responseData.command] : []) || (responseData.rawJerry ? [responseData.rawJerry] : []);
+        if (Array.isArray(cmds) && cmds.length > 0) {
+          const descriptions = cmds
+            .map((cmd: any) => {
+              if (!cmd || !cmd.action) return "";
+              const deviceName = cmd.device ? cmd.device.replace(/_/g, " ") : "device";
+              const roomName = cmd.room ? cmd.room.replace(/_/g, " ") : "";
+              const actionStr = cmd.action.replace(/_/g, " ").replace("turn ", "");
+              const valStr = cmd.value !== undefined ? ` to ${cmd.value}` : "";
+              return `${actionStr} ${deviceName}${roomName ? ` in the ${roomName}` : ""}${valStr}`;
+            })
+            .filter(Boolean);
+
+          if (descriptions.length > 0) {
+            spokenConfirmation = "Done! I have " + descriptions.join(" and ") + ".";
+          }
+        }
+      }
+
+      // Final fallback
+      if (!spokenConfirmation) {
+        spokenConfirmation = "Command executed successfully.";
+      }
       
       setAiResponse(spokenConfirmation);
       speakText(spokenConfirmation);

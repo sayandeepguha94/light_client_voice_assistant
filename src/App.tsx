@@ -63,6 +63,7 @@ export default function App() {
   const [manualInput, setManualInput] = useState("");
   const [latency, setLatency] = useState("4.2ms");
   const [currentTime, setCurrentTime] = useState("");
+  const [selectedLanguage, setSelectedLanguage] = useState("en-US");
 
   // Chat History & Expandable Rooms States
   const [expandedRooms, setExpandedRooms] = useState<Record<string, boolean>>({});
@@ -143,10 +144,14 @@ export default function App() {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 1.05;
       utterance.pitch = 1.0;
+      utterance.lang = selectedLanguage;
       
-      // Select an elegant female/neutral voice if available
+      // Select an elegant female/neutral voice in the chosen language if available
       const voices = window.speechSynthesis.getVoices();
-      const premiumVoice = voices.find(v => v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Synthesis"));
+      const langPrefix = selectedLanguage.split('-')[0];
+      const premiumVoice = voices.find(v => v.lang.startsWith(langPrefix) && (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Synthesis")))
+        || voices.find(v => v.lang.startsWith(langPrefix));
+        
       if (premiumVoice) {
         utterance.voice = premiumVoice;
       }
@@ -224,7 +229,7 @@ export default function App() {
       const rec = new SpeechRecognition();
       rec.continuous = false;
       rec.interimResults = false;
-      rec.lang = "en-US";
+      rec.lang = selectedLanguage;
 
       rec.onstart = () => {
         setListening(true);
@@ -310,6 +315,14 @@ export default function App() {
       clearInterval(latencyTimer);
     };
   }, []);
+
+  // Sync selected language with Speech Recognition
+  useEffect(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = selectedLanguage;
+      addLog("info", `Speech recognition language updated to: ${selectedLanguage}`);
+    }
+  }, [selectedLanguage]);
 
   // Sync states to refs to avoid stale closures in voice recognition callbacks
   useEffect(() => {
@@ -427,6 +440,7 @@ export default function App() {
     const payload = {
       query: text,
       text: text,
+      language: selectedLanguage,
       timestamp: new Date().toISOString()
     };
 
@@ -756,11 +770,29 @@ export default function App() {
         <div className="flex items-center gap-4">
           <div className={`w-3 h-3 rounded-full transition-all duration-500 ${listening ? "bg-purple-500 shadow-[0_0_12px_#a855f7]" : "bg-cyan-400 shadow-[0_0_10px_#22d3ee]"}`}></div>
           <div>
-            <h1 className="text-sm font-bold tracking-[0.2em] uppercase text-cyan-400 flex items-center gap-2">
+            <h1 className="text-sm font-bold tracking-[0.2em] uppercase text-cyan-400 flex flex-wrap items-center gap-2">
               Voice IoT Hub
               <span className="text-[9px] font-mono font-normal tracking-normal text-slate-400 lowercase px-2 py-0.5 rounded-full bg-white/5">
                 v1.2.0
               </span>
+              <div className="flex items-center gap-1 normal-case tracking-normal ml-1">
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="bg-[#1a1d2f] border border-white/10 text-xs text-slate-200 px-2 py-0.5 rounded-md focus:outline-none focus:border-cyan-400/50 cursor-pointer font-sans"
+                  title="Select AI Voice & Transcription Language (Piper/Whisper)"
+                >
+                  <option value="en-US">en-US</option>
+                  <option value="en-IN">en-IN</option>
+                  <option value="es-ES">es-ES</option>
+                  <option value="fr-FR">fr-FR</option>
+                  <option value="de-DE">de-DE</option>
+                  <option value="it-IT">it-IT</option>
+                  <option value="hi-IN">hi-IN</option>
+                  <option value="zh-CN">zh-CN</option>
+                  <option value="ja-JP">ja-JP</option>
+                </select>
+              </div>
             </h1>
             <p className="text-[10px] text-slate-400 font-mono">LOCAL_LINUX_CONTAINER // SECURE_BRIDGE</p>
           </div>
@@ -1302,7 +1334,7 @@ export default function App() {
 
         {activeTab === "guide" && (
           <div className="max-w-5xl mx-auto">
-            <IntegrationGuide />
+            <IntegrationGuide selectedLanguage={selectedLanguage} />
           </div>
         )}
       </main>

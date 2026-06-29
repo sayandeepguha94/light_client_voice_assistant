@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Terminal, Copy, Check, Info, Shield, Network, Cpu } from "lucide-react";
 
-export default function IntegrationGuide() {
+export default function IntegrationGuide({ selectedLanguage = "en-US" }: { selectedLanguage?: string }) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const copyToClipboard = (text: string, index: number) => {
@@ -9,6 +9,21 @@ export default function IntegrationGuide() {
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
   };
+
+  const piperModelMap: Record<string, { model: string, name: string }> = {
+    "en-US": { model: "en_US-lessac-medium.onnx", name: "en-US" },
+    "en-IN": { model: "en_US-lessac-medium.onnx", name: "en-IN" },
+    "es-ES": { model: "es_ES-sharvard-medium.onnx", name: "es-ES" },
+    "fr-FR": { model: "fr_FR-gilles-medium.onnx", name: "fr-FR" },
+    "de-DE": { model: "de_DE-thorsten-medium.onnx", name: "de-DE" },
+    "it-IT": { model: "it_IT-riccardo-medium.onnx", name: "it-IT" },
+    "hi-IN": { model: "hi_IN-fen-medium.onnx", name: "hi-IN" },
+    "zh-CN": { model: "zh_CN-huayan-medium.onnx", name: "zh-CN" },
+    "ja-JP": { model: "ja_JP-hikarina-medium.onnx", name: "ja-JP" },
+  };
+
+  const currentPiper = piperModelMap[selectedLanguage] || piperModelMap["en-US"];
+  const whisperLangCode = selectedLanguage.split("-")[0];
 
   const codeBlocks = {
     localServer: `# Step 1: Install Node.js in your Linux environment
@@ -295,6 +310,54 @@ if __name__ == "__main__":
             >
               {copiedIndex === 3 ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
             </button>
+          </div>
+        </div>
+
+        {/* Step 4: Whisper & Piper Local Integration */}
+        <div className="bg-[#161a22] border border-[#1e222b] rounded-xl p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="w-6 h-6 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-mono flex items-center justify-center font-bold">4</span>
+              <h3 className="text-sm font-semibold text-white">Open Source Whisper STT & Piper TTS Integration</h3>
+            </div>
+            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-400 font-semibold">Offline AI</span>
+          </div>
+          <p className="text-xs text-gray-400 leading-relaxed font-sans">
+            To make your local IoT voice server 100% private, you can integrate open source <strong>Whisper</strong> (for speech transcription) and <strong>Piper</strong> (for ultra-fast text-to-speech) on your local machine. These models are configured for your chosen language: <strong className="text-cyan-400">{currentPiper.name}</strong> ({selectedLanguage}).
+          </p>
+          
+          <div className="space-y-4">
+            <div>
+              <p className="text-[11px] font-bold text-slate-300">1. Setup Faster-Whisper (STT) on Local Server:</p>
+              <pre className="text-[10px] font-mono p-3 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-cyan-300 overflow-x-auto whitespace-pre leading-relaxed mt-1">
+{`# Install faster-whisper package
+pip install faster-whisper
+
+# Python example to transcribe with language="${whisperLangCode}"
+from faster_whisper import WhisperModel
+model = WhisperModel("base", device="cpu", compute_type="int8")
+segments, info = model.transcribe("audio.wav", language="${whisperLangCode}")
+text = "".join([seg.text for seg in segments])
+print("Transcribed:", text)`}
+              </pre>
+            </div>
+
+            <div>
+              <p className="text-[11px] font-bold text-slate-300">2. Setup Piper (TTS) on Local Server:</p>
+              <pre className="text-[10px] font-mono p-3 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-cyan-300 overflow-x-auto whitespace-pre leading-relaxed mt-1">
+{`# Install Piper TTS engine
+sudo apt install piper-tts
+
+# Download the voice model for ${currentPiper.name}
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/${selectedLanguage.replace('-', '_').split('_')[0]}/${selectedLanguage.replace('-', '_')}/medium/${currentPiper.model}
+wget https://huggingface.co/rhasspy/piper-voices/resolve/main/${selectedLanguage.replace('-', '_').split('_')[0]}/${selectedLanguage.replace('-', '_')}/medium/${currentPiper.model}.json
+
+# Synthesize text to speech in real-time
+echo "Turned on kitchen lights" | piper \\
+  --model ${currentPiper.model} \\
+  --output_file response.wav`}
+              </pre>
+            </div>
           </div>
         </div>
       </div>

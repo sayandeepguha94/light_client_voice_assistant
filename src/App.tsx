@@ -1092,36 +1092,44 @@ export default function App() {
 
               {/* Floating Speech Orb & Status Area */}
               <div className="relative z-10 flex flex-col items-center text-center w-full max-w-sm mx-auto my-auto py-6">
-                <button
+                {/* Enclosing Circular Touch Area */}
+                <div
                   onClick={toggleListening}
-                  className={`w-36 h-36 rounded-full border border-white/10 flex items-center justify-center p-4 transition-all duration-500 cursor-pointer ${
+                  className={`w-48 h-48 rounded-full border border-dashed flex items-center justify-center transition-all duration-500 cursor-pointer p-4 select-none ${
                     listening 
-                      ? "shadow-[0_0_30px_rgba(168,85,247,0.35)] border-purple-500/50 scale-105 bg-purple-500/5" 
-                      : "hover:border-cyan-400/40 hover:shadow-[0_0_20px_rgba(34,211,238,0.15)] active:scale-95"
+                      ? "border-purple-500/40 bg-purple-500/5 shadow-[0_0_40px_rgba(168,85,247,0.25)] scale-105" 
+                      : "border-cyan-400/20 bg-cyan-500/2 hover:border-cyan-400/40 hover:shadow-[0_0_25px_rgba(34,211,238,0.12)] hover:bg-cyan-500/5 active:scale-95"
                   }`}
-                  title="Click to speak smart command"
+                  title="Click anywhere inside the outer ring to talk"
                 >
-                  <div className={`w-full h-full rounded-full border flex items-center justify-center transition-all duration-500 ${
+                  {/* The Inner Orb */}
+                  <div className={`w-36 h-36 rounded-full border flex items-center justify-center p-3.5 transition-all duration-500 ${
                     listening 
                       ? "border-purple-400/50 bg-purple-500/10 shadow-[inset_0_0_30px_rgba(168,85,247,0.25)]" 
-                      : "border-cyan-400/30 bg-[#11131f]/40 shadow-[inset_0_0_20px_rgba(34,211,238,0.1)]"
+                      : "border-cyan-400/35 bg-[#11131f]/60 shadow-[inset_0_0_20px_rgba(34,211,238,0.1)]"
                   }`}>
-                    {listening ? (
-                      <div className="flex items-center gap-1.5 h-10">
-                        <div className="w-1 h-5 bg-purple-400 rounded-full animate-pulse"></div>
-                        <div className="w-1 h-8 bg-purple-400 rounded-full animate-bounce"></div>
-                        <div className="w-1 h-12 bg-purple-400 rounded-full shadow-[0_0_10px_#a855f7] animate-pulse"></div>
-                        <div className="w-1 h-7 bg-purple-400 rounded-full animate-bounce"></div>
-                        <div className="w-1 h-4 bg-purple-400 rounded-full animate-pulse"></div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center">
-                        <Mic className="w-7 h-7 text-cyan-400 animate-pulse mb-1" />
-                        <span className="text-[9px] font-mono tracking-widest text-slate-500 font-bold uppercase">READY</span>
-                      </div>
-                    )}
+                    <div className={`w-full h-full rounded-full border flex items-center justify-center transition-all duration-500 ${
+                      listening 
+                        ? "border-purple-400/20 bg-purple-500/15" 
+                        : "border-cyan-400/10 bg-[#0c0d16]/80"
+                    }`}>
+                      {listening ? (
+                        <div className="flex items-center gap-1.5 h-10">
+                          <div className="w-1 h-5 bg-purple-400 rounded-full animate-pulse"></div>
+                          <div className="w-1 h-8 bg-purple-400 rounded-full animate-bounce"></div>
+                          <div className="w-1 h-12 bg-purple-400 rounded-full shadow-[0_0_10px_#a855f7] animate-pulse"></div>
+                          <div className="w-1 h-7 bg-purple-400 rounded-full animate-bounce"></div>
+                          <div className="w-1 h-4 bg-purple-400 rounded-full animate-pulse"></div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center">
+                          <Mic className="w-7 h-7 text-cyan-400 animate-pulse mb-1" />
+                          <span className="text-[9px] font-mono tracking-widest text-slate-500 font-bold uppercase">READY</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </button>
+                </div>
 
                 <div className="mt-5 space-y-3 w-full">
                   <p className={`text-xs font-bold tracking-[0.2em] uppercase transition-colors ${listening ? "text-purple-400" : "text-cyan-400"}`}>

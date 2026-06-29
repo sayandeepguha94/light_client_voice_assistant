@@ -11,13 +11,13 @@ export default function IntegrationGuide() {
   };
 
   const codeBlocks = {
-    localServer: `# Step 1: Install Node.js in FydeOS Linux (Crostini)
+    localServer: `# Step 1: Install Node.js in your Linux environment
 sudo apt update
 sudo apt install -y nodejs npm
 
 # Step 2: Clone or download this project, then enter the folder
 # (If you exported the ZIP or connected via git)
-cd ~/fydeos-voice-iot-hub
+cd ~/voice-iot-hub
 
 # Step 3: Install all dependencies
 npm install
@@ -45,7 +45,7 @@ PORT = 8000
 
 class JerryBridgeHandler(SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
-        # Handle CORS preflight requests from FydeOS container
+        # Handle CORS preflight requests from local container
         self.send_response(200, "ok")
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
@@ -174,7 +174,7 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     print(f"Jerry Voice IoT Bridge Server active on port {PORT}...")
-    print("Directly connected to FydeOS Web Voice Hub!")
+    print("Directly connected to local Web Voice Hub!")
     server = HTTPServer(("0.0.0.0", PORT), JerryBridgeHandler)
     server.serve_forever()`,
     chromeFlags: `chrome://flags/#allow-insecure-localhost`
@@ -187,7 +187,7 @@ if __name__ == "__main__":
           <Cpu className="w-6 h-6" />
         </div>
         <div>
-          <h2 className="text-xl font-semibold text-white tracking-tight">FydeOS & Linux Integration Guide</h2>
+          <h2 className="text-xl font-semibold text-white tracking-tight">Linux Integration Guide</h2>
           <p className="text-xs text-gray-400">Architectural instructions to bridge local devices and cloud intelligence</p>
         </div>
       </div>
@@ -198,7 +198,7 @@ if __name__ == "__main__":
           <div>
             <h4 className="text-sm font-medium text-white">How Network Bridging Works</h4>
             <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-              FydeOS's Linux environment (Crostini) operates inside a secure container. It automatically forwards network ports over 1024 to the host.
+              The Linux environment operates inside a secure container. It automatically forwards network ports over 1024 to the host.
               To trigger commands on your local IoT assistant (<strong>192.168.29.112</strong>), your browser can make requests directly or through our local proxy.
             </p>
           </div>
@@ -228,7 +228,7 @@ if __name__ == "__main__":
             <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 font-semibold">Recommended</span>
           </div>
           <p className="text-xs text-gray-400 leading-relaxed">
-            Running the server directly inside your FydeOS Linux subsystem launches the app on <code className="text-indigo-400 font-mono">http://localhost:3000</code>.
+            Running the server directly inside your local Linux subsystem launches the app on <code className="text-indigo-400 font-mono">http://localhost:3000</code>.
             Because it runs inside a local HTTP context, Chromium completely skips Mixed Content blocks, giving you <strong>direct, lag-free API communication</strong> to <code className="text-indigo-400 font-mono">192.168.29.112</code>.
           </p>
           
@@ -302,9 +302,9 @@ if __name__ == "__main__":
       <div className="bg-[#1e1b18] border border-amber-500/10 rounded-xl p-4 flex items-start space-x-3">
         <Info className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
         <div className="space-y-1">
-          <h5 className="text-xs font-semibold text-amber-400">FydeOS Linux Audio sharing</h5>
+          <h5 className="text-xs font-semibold text-amber-400">Linux Audio Sharing</h5>
           <p className="text-[11px] text-gray-400 leading-relaxed font-sans">
-            Ensure you enable <strong>"Microphone access"</strong> in your FydeOS settings under the <strong>Linux development environment</strong> configuration, otherwise the voice assistant will not receive audio streams inside the Crostini terminal context!
+            Ensure you enable <strong>"Microphone access"</strong> in your system settings under your <strong>Linux development environment</strong> configuration, otherwise the voice assistant will not receive audio streams inside the terminal context!
           </p>
         </div>
       </div>

@@ -57,7 +57,7 @@ export default function App() {
   const [listening, setListening] = useState(false);
   const [speechSynthesisEnabled, setSpeechSynthesisEnabled] = useState(true);
   const [transcript, setTranscript] = useState("");
-  const [aiResponse, setAiResponse] = useState("Hello! I am ready to monitor and control your local IoT ecosystem. Press Space or click the microphone to speak.");
+  const [aiResponse, setAiResponse] = useState("Hello! I am ready to monitor and control your local IoT ecosystem. Tap Space or click the microphone to speak.");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [manualInput, setManualInput] = useState("");
@@ -70,7 +70,7 @@ export default function App() {
     {
       id: "initial",
       sender: "assistant",
-      text: "Hello! I am ready to monitor and control your local IoT ecosystem. Press Space or click the microphone to speak.",
+      text: "Hello! I am ready to monitor and control your local IoT ecosystem. Tap Space or click the microphone to speak.",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -351,6 +351,7 @@ export default function App() {
   // Listen for spacebar to trigger voice commands
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
       if (e.code === "Space" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
         e.preventDefault();
         toggleListening();
@@ -1123,7 +1124,7 @@ export default function App() {
                           : "Listening for command...") 
                       : (wakeWordEnabled 
                           ? "Wake Word Mode Active" 
-                          : "Press Space or click orb to talk")}
+                          : "Tap Space or click orb to talk")}
                   </p>
                   
                   {transcript && (

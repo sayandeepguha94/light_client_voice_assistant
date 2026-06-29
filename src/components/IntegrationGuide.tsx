@@ -30,6 +30,17 @@ import time
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import assistant_openai
 
+# Import your actual local modules
+import devices
+from tools import (
+    turn_on,
+    turn_off,
+    set_fan_speed,
+    room_on,
+    room_off,
+    get_state,
+)
+
 PORT = 8000
 
 class JerryBridgeHandler(SimpleHTTPRequestHandler):
@@ -42,17 +53,31 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        # Return status response
+        # Return all live states of devices polled every 30s
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         
         print("\n[Jerry Hub] Received status polling request.")
-        response_data = {
-            "status": "success",
-            "message": "Assistant bridge is active and ready."
-        }
+        states = {}
+        try:
+            for r in devices.DEVICES:
+                states[r] = {}
+                for d in devices.DEVICES[r]:
+                    val = get_state(r, d)
+                    states[r][d] = val if val is not None else "Unknown"
+            
+            response_data = {
+                "status": "success",
+                "states": states
+            }
+        except Exception as e:
+            print(f"[Jerry Hub] Error querying statuses: {e}")
+            response_data = {
+                "status": "error",
+                "message": str(e)
+            }
         self.wfile.write(json.dumps(response_data).encode('utf-8'))
 
     def do_POST(self):
@@ -97,10 +122,54 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
             return
 
         # Scenario B: Manual Dashboard Button Control (Toggles, Sliders)
-        response_data = {
-            "status": "success",
-            "message": "Manual controls route through assistant_openai."
-        }
+        device_id = payload.get("deviceId")
+        action = payload.get("action")
+        value = payload.get("value")
+
+        # Extract room and device from device_id "room.deviceKey"
+        room = None
+        device = None
+        if device_id and "." in device_id:
+            room, device = device_id.split(".", 1)
+        elif payload.get("room"):
+            room = payload.get("room")
+            device = payload.get("device")
+
+        result_msg = "No action executed"
+        time_init = time.time()
+        
+        try:
+            if action == "turn_on" and room and device:
+                result_msg = turn_on(room, device)
+                print(f" -> Executed turn_on({room}, {device}): {result_msg}")
+            elif action == "turn_off" and room and device:
+                result_msg = turn_off(room, device)
+                print(f" -> Executed turn_off({room}, {device}): {result_msg}")
+            elif action == "room_on" and room:
+                result_msg = room_on(room)
+                print(f" -> Executed room_on({room}): {result_msg}")
+            elif action == "room_off" and room:
+                result_msg = room_off(room)
+                print(f" -> Executed room_off({room}): {result_msg}")
+            elif action == "set_fan_speed" and room and device:
+                result_msg = set_fan_speed(room, device, value)
+                print(f" -> Executed set_fan_speed({room}, {device}, {value}): {result_msg}")
+            
+            elapsed = time.time() - time_init
+            print(f"[Jerry Hub] Manual Action success: {result_msg} ({elapsed:.3f}s)")
+            
+            response_data = {
+                "status": "success",
+                "message": result_msg,
+                "elapsed": f"{elapsed:.3f} seconds"
+            }
+        except Exception as e:
+            print(f"[Jerry Hub] Execution error: {e}")
+            response_data = {
+                "status": "error",
+                "message": str(e)
+            }
+            
         self.wfile.write(json.dumps(response_data).encode('utf-8'))
 
 if __name__ == "__main__":

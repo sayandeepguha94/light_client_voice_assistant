@@ -485,50 +485,7 @@ export default function App() {
         throw new Error(responseData.message || "Unknown error from local assistant");
       }
 
-      let spokenConfirmation = "";
-
-      if (typeof responseData === "string" && responseData.trim() !== "") {
-        spokenConfirmation = responseData.trim();
-      } else if (responseData && typeof responseData === "object") {
-        spokenConfirmation = 
-          responseData.response || 
-          responseData.response_text ||
-          responseData.responseText ||
-          responseData.text ||
-          responseData.reply ||
-          responseData.speech ||
-          responseData.output ||
-          responseData.result ||
-          responseData.nc_message || 
-          responseData.message || 
-          "";
-      }
-
-      // If no textual confirmation was returned but commands were executed, construct a user-friendly response description
-      if (!spokenConfirmation && responseData && typeof responseData === "object") {
-        const cmds = responseData.commands || (responseData.command ? [responseData.command] : []) || (responseData.rawJerry ? [responseData.rawJerry] : []);
-        if (Array.isArray(cmds) && cmds.length > 0) {
-          const descriptions = cmds
-            .map((cmd: any) => {
-              if (!cmd || !cmd.action) return "";
-              const deviceName = cmd.device ? cmd.device.replace(/_/g, " ") : "device";
-              const roomName = cmd.room ? cmd.room.replace(/_/g, " ") : "";
-              const actionStr = cmd.action.replace(/_/g, " ").replace("turn ", "");
-              const valStr = cmd.value !== undefined ? ` to ${cmd.value}` : "";
-              return `${actionStr} ${deviceName}${roomName ? ` in the ${roomName}` : ""}${valStr}`;
-            })
-            .filter(Boolean);
-
-          if (descriptions.length > 0) {
-            spokenConfirmation = "Done! I have " + descriptions.join(" and ") + ".";
-          }
-        }
-      }
-
-      // Final fallback
-      if (!spokenConfirmation) {
-        spokenConfirmation = "Command executed successfully.";
-      }
+      const spokenConfirmation = responseData.response || responseData.nc_message || responseData.message || "Command executed successfully.";
       
       setAiResponse(spokenConfirmation);
       speakText(spokenConfirmation);

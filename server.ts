@@ -120,7 +120,7 @@ app.post("/api/parse-command", (req, res) => {
 });
 
 // API Route: Local HTTP Proxy
-// This allows the browser to bypass CORS and HTTPS mixed content blockers when running the dashboard locally in a Linux environment.
+// This allows the browser to bypass CORS and HTTPS mixed content blockers when running the dashboard locally in FydeOS Linux.
 // The browser hits /api/proxy with the target url and payload, and this node server issues the fetch locally.
 app.post("/api/proxy", async (req, res) => {
   const { url, method, headers, body } = req.body;
@@ -149,7 +149,7 @@ app.post("/api/proxy", async (req, res) => {
     return res.status(502).json({
       error: "Bad Gateway",
       message: `Failed to connect to local IP server: ${error.message}`,
-      suggestion: "If you are running in the cloud, this server cannot access private IPs like 192.168.29.112. Run this dashboard locally in your local Linux container, or use our bridge guide!",
+      suggestion: "If you are running in the cloud, this server cannot access private IPs like 192.168.29.112. Run this dashboard locally in your FydeOS Linux container, or use our bridge guide!",
     });
   }
 });

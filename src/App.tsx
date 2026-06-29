@@ -2,10 +2,9 @@ import { useState, useEffect, useRef, FormEvent } from "react";
 import { 
   Mic, MicOff, Power, RefreshCw, Volume2, VolumeX, Terminal, 
   Settings, HelpCircle, LayoutGrid, CheckCircle2, AlertCircle, 
-  Lightbulb, Thermometer, Wind, Lock, Unlock, ShieldAlert, ShieldCheck, Airplay, Send, Laptop,
-  ChevronDown, ChevronUp
+  Lightbulb, Thermometer, Wind, Lock, Unlock, ShieldAlert, ShieldCheck, Airplay, Send, Laptop
 } from "lucide-react";
-import { Device, SystemLog, ConnectionConfig, ChatMessage } from "./types";
+import { Device, SystemLog, ConnectionConfig } from "./types";
 import ConnectionSettings from "./components/ConnectionSettings";
 import IntegrationGuide from "./components/IntegrationGuide";
 import SystemLogComponent from "./components/SystemLog";
@@ -63,28 +62,6 @@ export default function App() {
   const [manualInput, setManualInput] = useState("");
   const [latency, setLatency] = useState("4.2ms");
   const [currentTime, setCurrentTime] = useState("");
-
-  // Chat History & Expandable Rooms States
-  const [expandedRooms, setExpandedRooms] = useState<Record<string, boolean>>({});
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: "initial",
-      sender: "assistant",
-      text: "Hello! I am ready to monitor and control your local IoT ecosystem. Press Space or click the microphone to speak.",
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ]);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  const toggleRoom = (roomName: string) => {
-    setExpandedRooms(prev => {
-      const isCurrentlyExpanded = !!prev[roomName];
-      // Close all other rooms, and toggle the clicked one
-      return {
-        [roomName]: !isCurrentlyExpanded
-      };
-    });
-  };
 
   // Wake Word & Speech Flow states
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
@@ -215,7 +192,7 @@ export default function App() {
       setLatency(`${ms}ms`);
     }, 5000);
 
-    addLog("info", "Voice IoT Dashboard loaded.", "Awaiting connection parameters or local microphone triggers.");
+    addLog("info", "FydeOS Voice IoT Dashboard loaded.", "Awaiting connection parameters or local microphone triggers.");
 
     // Check Speech Recognition capability
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -368,15 +345,6 @@ export default function App() {
     return () => clearTimeout(startSync);
   }, []);
 
-  // Auto-scroll chat history to bottom
-  useEffect(() => {
-    if (activeTab === "chat") {
-      setTimeout(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
-    }
-  }, [chatMessages, activeTab]);
-
   const toggleListening = () => {
     if (!speechSupported) {
       addLog("warning", "Speech Recognition is offline.", "Please type your commands manually in the console below.");
@@ -405,15 +373,6 @@ export default function App() {
     setIsProcessing(true);
     setAiResponse("Processing command payload...");
     addLog("info", `Forwarding text query to local Jerry AI server at http://${config.serverIp}:${config.serverPort}...`, `Query: "${text}"`);
-
-    // Add user message to chat history
-    const userMsg: ChatMessage = {
-      id: "user-" + Date.now() + "-" + Math.random().toString(36).substring(2, 5),
-      sender: "user",
-      text: text.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    setChatMessages(prev => [...prev, userMsg]);
 
     const targetUrl = `http://${config.serverIp}:${config.serverPort}/`;
     const payload = {
@@ -464,15 +423,6 @@ export default function App() {
       speakText(spokenConfirmation);
       addLog("success", spokenConfirmation, `Parsed and executed on AI server (${config.serverIp})`);
 
-      // Add assistant response to chat history
-      const assistantMsg: ChatMessage = {
-        id: "assistant-" + Date.now() + "-" + Math.random().toString(36).substring(2, 5),
-        sender: "assistant",
-        text: spokenConfirmation,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setChatMessages(prev => [...prev, assistantMsg]);
-
       // Update local states if returned from assistant_openai
       if (responseData.commands && Array.isArray(responseData.commands) && responseData.commands.length > 0) {
         let updated = false;
@@ -503,32 +453,20 @@ export default function App() {
       addLog("error", errMsg);
       
       // Local rule fallback
-      let fallbackText = "I encountered an issue communicating with the AI server. You can toggle any device manually above!";
       const lower = text.toLowerCase();
       if (lower.includes("light") && (lower.includes("off") || lower.includes("stop"))) {
         updateLocalStateOnly("living room", "ambient light", "turn_off");
         executeDeviceAction("living room", "ambient light", "turn_off");
-        fallbackText = "Fallback: Turning off the living room ambient light.";
-        setAiResponse(fallbackText);
+        setAiResponse("Fallback: Turning off the living room ambient light.");
         speakText("Turning off the ambient light.");
       } else if (lower.includes("light") && (lower.includes("on") || lower.includes("start"))) {
         updateLocalStateOnly("living room", "ambient light", "turn_on");
         executeDeviceAction("living room", "ambient light", "turn_on");
-        fallbackText = "Fallback: Turning on the living room ambient light.";
-        setAiResponse(fallbackText);
+        setAiResponse("Fallback: Turning on the living room ambient light.");
         speakText("Turning on the ambient light.");
       } else {
-        setAiResponse(fallbackText);
+        setAiResponse("I encountered an issue communicating with the AI server. You can toggle any device manually above!");
       }
-
-      // Add fallback assistant response to chat history
-      const assistantMsg: ChatMessage = {
-        id: "assistant-" + Date.now() + "-" + Math.random().toString(36).substring(2, 5),
-        sender: "assistant",
-        text: fallbackText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setChatMessages(prev => [...prev, assistantMsg]);
     } finally {
       setIsProcessing(false);
     }
@@ -624,7 +562,7 @@ export default function App() {
       addLog(
         "warning",
         `LAN Server ${config.serverIp} unreachable`,
-        `Dashboard successfully simulated state change locally, but the remote server at http://${config.serverIp}:${config.serverPort} is currently offline.\nReason: ${dispatchError.message || "Timeout"}.\n\nTips:\n1. Open our "Setup Guide" tab to download a simple Python IoT Bridge Script to run on your local server.\n2. Ensure your browser permissions permit mixed-content LAN queries.`
+        `Dashboard successfully simulated state change locally, but the remote server at http://${config.serverIp}:${config.serverPort} is currently offline.\nReason: ${dispatchError.message || "Timeout"}.\n\nTips:\n1. Open our "Setup Guide" tab to download a simple Python IoT Bridge Script to run on your local server.\n2. Ensure your FydeOS browser permissions permit mixed-content LAN queries.`
       );
     }
   };
@@ -749,12 +687,12 @@ export default function App() {
           <div className={`w-3 h-3 rounded-full transition-all duration-500 ${listening ? "bg-purple-500 shadow-[0_0_12px_#a855f7]" : "bg-cyan-400 shadow-[0_0_10px_#22d3ee]"}`}></div>
           <div>
             <h1 className="text-sm font-bold tracking-[0.2em] uppercase text-cyan-400 flex items-center gap-2">
-              Voice IoT Hub
+              FydeOS Voice IoT Hub
               <span className="text-[9px] font-mono font-normal tracking-normal text-slate-400 lowercase px-2 py-0.5 rounded-full bg-white/5">
                 v1.2.0
               </span>
             </h1>
-            <p className="text-[10px] text-slate-400 font-mono">LOCAL_LINUX_CONTAINER // SECURE_BRIDGE</p>
+            <p className="text-[10px] text-slate-400 font-mono">CROSTINI_LINUX_CONTAINER // SECURE_BRIDGE</p>
           </div>
         </div>
 
@@ -878,104 +816,85 @@ export default function App() {
                       acc[dev.room].push(dev);
                       return acc;
                     }, {} as Record<string, Device[]>)
-                  ) as Array<[string, Device[]]>).map(([roomName, roomDevs]) => {
-                    const isExpanded = !!expandedRooms[roomName];
-                    const activeCount = roomDevs.filter(d => d.on).length;
-                    
-                    return (
-                      <div 
-                        key={roomName} 
-                        className={`p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex flex-col transition-all duration-300 ${isExpanded ? "gap-3" : "gap-0"}`}
-                      >
-                        <div 
-                          onClick={() => toggleRoom(roomName)}
-                          className="flex justify-between items-center cursor-pointer select-none hover:bg-white/[0.03] p-2 -m-2 rounded-xl transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            {isExpanded ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-                            <h3 className="text-xs font-bold tracking-widest uppercase text-cyan-400 font-mono">
-                              {roomName}
-                            </h3>
-                            <span className="text-[9px] font-mono text-slate-400 bg-cyan-400/10 px-1.5 py-0.5 rounded-full font-bold">
-                              {activeCount}/{roomDevs.length} Active
-                            </span>
-                          </div>
-                          <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => executeDeviceAction(roomName, null, "room_on")}
-                              className="text-[9px] text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-wider bg-emerald-500/10 px-2.5 py-1 rounded transition-colors cursor-pointer"
-                              title={`Turn on all in ${roomName}`}
-                            >
-                              All On
-                            </button>
-                            <button
-                              onClick={() => executeDeviceAction(roomName, null, "room_off")}
-                              className="text-[9px] text-rose-400 hover:text-rose-300 font-bold uppercase tracking-wider bg-rose-500/10 px-2.5 py-1 rounded transition-colors cursor-pointer"
-                              title={`Turn off all in ${roomName}`}
-                            >
-                              All Off
-                            </button>
-                          </div>
+                  ) as Array<[string, Device[]]>).map(([roomName, roomDevs]) => (
+                    <div key={roomName} className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex flex-col gap-3">
+                      <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                        <h3 className="text-xs font-bold tracking-widest uppercase text-cyan-400 font-mono">
+                          {roomName}
+                        </h3>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => executeDeviceAction(roomName, null, "room_on")}
+                            className="text-[9px] text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-wider bg-emerald-500/10 px-2 py-0.5 rounded transition-colors cursor-pointer"
+                            title={`Turn on all in ${roomName}`}
+                          >
+                            All On
+                          </button>
+                          <button
+                            onClick={() => executeDeviceAction(roomName, null, "room_off")}
+                            className="text-[9px] text-rose-400 hover:text-rose-300 font-bold uppercase tracking-wider bg-rose-500/10 px-2 py-0.5 rounded transition-colors cursor-pointer"
+                            title={`Turn off all in ${roomName}`}
+                          >
+                            All Off
+                          </button>
                         </div>
-
-                        {isExpanded && (
-                          <div className="space-y-2 mt-3 animate-fade-in border-t border-white/5 pt-3">
-                            {roomDevs.map(dev => (
-                              <div 
-                                key={dev.id} 
-                                className="p-3 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 rounded-xl flex flex-col gap-2 transition-all duration-300"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    {getDeviceIcon(dev)}
-                                    <div>
-                                      <p className="text-xs font-semibold text-white leading-tight">{dev.name}</p>
-                                      <p className="text-[10px] text-slate-400 font-mono leading-none mt-1">{dev.statusText}</p>
-                                    </div>
-                                  </div>
-
-                                  <button
-                                    onClick={() => executeDeviceAction(dev.room, dev.deviceKey, dev.on ? "turn_off" : "turn_on")}
-                                    className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                                      dev.on 
-                                        ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/35 shadow-[0_0_10px_rgba(34,211,238,0.15)]" 
-                                        : "bg-slate-800/40 text-slate-400 border-white/5 hover:bg-slate-800"
-                                    }`}
-                                    title={`Turn ${dev.on ? "Off" : "On"}`}
-                                  >
-                                    <Power className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-
-                                {dev.on && dev.category === "fan" && dev.value !== undefined && (
-                                  <div className="flex items-center gap-2.5 pt-1">
-                                    <input
-                                      type="range"
-                                      min="1"
-                                      max="5"
-                                      value={dev.value}
-                                      onChange={(e) => executeDeviceAction(dev.room, dev.deviceKey, "set_fan_speed", parseInt(e.target.value, 10))}
-                                      className="flex-1 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
-                                    />
-                                    <span className="text-[10px] font-mono text-cyan-400 font-bold bg-cyan-400/5 px-1.5 py-0.5 rounded">
-                                      Speed {dev.value}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </div>
-                    );
-                  })}
+
+                      <div className="space-y-2">
+                        {roomDevs.map(dev => (
+                          <div 
+                            key={dev.id} 
+                            className="p-3 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 rounded-xl flex flex-col gap-2 transition-all duration-300"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                {getDeviceIcon(dev)}
+                                <div>
+                                  <p className="text-xs font-semibold text-white leading-tight">{dev.name}</p>
+                                  <p className="text-[10px] text-slate-400 font-mono leading-none mt-1">{dev.statusText}</p>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={() => executeDeviceAction(dev.room, dev.deviceKey, dev.on ? "turn_off" : "turn_on")}
+                                className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                                  dev.on 
+                                    ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/35 shadow-[0_0_10px_rgba(34,211,238,0.15)]" 
+                                    : "bg-slate-800/40 text-slate-400 border-white/5 hover:bg-slate-800"
+                                }`}
+                                title={`Turn ${dev.on ? "Off" : "On"}`}
+                              >
+                                <Power className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {dev.on && dev.category === "fan" && dev.value !== undefined && (
+                              <div className="flex items-center gap-2.5 pt-1">
+                                <input
+                                  type="range"
+                                  min="1"
+                                  max="5"
+                                  value={dev.value}
+                                  onChange={(e) => executeDeviceAction(dev.room, dev.deviceKey, "set_fan_speed", parseInt(e.target.value, 10))}
+                                  className="flex-1 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                                />
+                                <span className="text-[10px] font-mono text-cyan-400 font-bold bg-cyan-400/5 px-1.5 py-0.5 rounded">
+                                  Speed {dev.value}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
               <div className="mt-6 pt-4 border-t border-white/5 flex justify-between items-center text-xs text-slate-500">
                 <span className="flex items-center gap-1">
                   <Laptop className="w-3.5 h-3.5 text-slate-400" />
-                  Linux Subsystem Connection:
+                  FydeOS Subsystem Connection:
                 </span>
                 <span className="text-emerald-400 font-semibold font-mono">STABLE</span>
               </div>
@@ -1043,21 +962,21 @@ export default function App() {
         )}
 
         {activeTab === "chat" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          <div className="max-w-3xl mx-auto">
             
-            {/* Left Part: Speech Assistant Orb & Controls */}
-            <div className="lg:col-span-7 flex flex-col justify-between relative bg-[#11131f]/20 border border-white/5 rounded-2xl p-6 overflow-hidden min-h-[520px]">
+            {/* Speech Assistant Orb and Actions Panel */}
+            <div className="flex flex-col justify-between relative bg-[#11131f]/20 border border-white/5 rounded-2xl p-6 overflow-hidden min-h-[480px]">
+              
               {/* Immersive Tech Aura Glows */}
               <div className="absolute w-72 h-72 bg-purple-500/5 blur-[80px] rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
               <div className="absolute w-48 h-48 bg-cyan-500/5 blur-[60px] rounded-full top-1/3 left-2/3 -translate-x-1/2 -translate-y-1/2"></div>
 
-              {/* Header inside Panel */}
               <div className="flex justify-between items-center relative z-10 border-b border-white/5 pb-3">
                 <h3 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-2">
                   <Mic className="w-4 h-4 text-purple-400 animate-pulse" />
-                  Voice Control Console
+                  Voice & Chat Assistant
                 </h3>
-                <div className="flex gap-2 relative z-10">
+                <div className="flex gap-2">
                   <button 
                     onClick={() => setWakeWordEnabled(!wakeWordEnabled)}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] rounded-md uppercase tracking-wider transition-colors font-semibold cursor-pointer border ${
@@ -1082,11 +1001,12 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Floating Speech Orb & Status Area */}
-              <div className="relative z-10 flex flex-col items-center text-center w-full max-w-sm mx-auto my-auto py-6">
+              <div className="relative z-10 flex flex-col items-center text-center w-full max-w-sm mx-auto my-6">
+                
+                {/* Floating Speech Orb */}
                 <button
                   onClick={toggleListening}
-                  className={`w-36 h-36 rounded-full border border-white/10 flex items-center justify-center p-4 transition-all duration-500 cursor-pointer ${
+                  className={`w-40 h-40 rounded-full border border-white/10 flex items-center justify-center p-4 transition-all duration-500 cursor-pointer ${
                     listening 
                       ? "shadow-[0_0_30px_rgba(168,85,247,0.35)] border-purple-500/50 scale-105 bg-purple-500/5" 
                       : "hover:border-cyan-400/40 hover:shadow-[0_0_20px_rgba(34,211,238,0.15)] active:scale-95"
@@ -1135,7 +1055,7 @@ export default function App() {
                   )}
 
                   <div className="text-slate-400 text-xs text-center border-t border-white/5 pt-3">
-                    <p className="text-slate-400 font-semibold text-[10px] mb-1 uppercase tracking-widest font-mono text-purple-400">Jerry Response Stream</p>
+                    <p className="text-slate-400 font-semibold text-[10px] mb-1 uppercase tracking-widest font-mono text-purple-400">Jerry Assistant response</p>
                     <p className="text-slate-200 text-xs leading-relaxed max-w-xs mx-auto">
                       {aiResponse}
                     </p>
@@ -1143,39 +1063,14 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Status / Listening Bar */}
-              {listening && (
-                <div className="relative z-10 bg-purple-500/5 border border-purple-500/15 rounded-xl px-4 py-2 mb-3 flex items-center justify-between text-xs animate-pulse text-purple-300">
-                  <span className="flex items-center gap-2">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
-                    </span>
-                    {wakeWordEnabled && !hasBeenWokenUpRef.current ? "Continuous Wake Word Listening ('Jerry')..." : "Listening for vocal command..."}
-                  </span>
-                </div>
-              )}
-
               {/* Integrated Command Input Bar */}
               <div className="relative z-10 border-t border-white/5 pt-4">
                 <form onSubmit={handleManualSubmit} className="bg-black/40 border border-white/10 rounded-xl px-4 py-2 flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={toggleListening}
-                    className={`p-2 rounded-lg transition-all duration-300 cursor-pointer ${
-                      listening 
-                        ? "bg-purple-500/20 text-purple-400 border border-purple-500/35" 
-                        : "text-slate-400 hover:text-cyan-400 hover:bg-white/5"
-                    }`}
-                    title={listening ? "Stop voice listening" : "Start voice command"}
-                  >
-                    <Mic className={`w-4 h-4 ${listening ? "animate-pulse text-purple-400" : ""}`} />
-                  </button>
                   <input
                     type="text"
                     value={manualInput}
                     onChange={(e) => setManualInput(e.target.value)}
-                    placeholder="Type smart command (e.g. 'Turn on living room ambient light')..."
+                    placeholder="Type smart command (e.g. 'Turn on living room ambient light' or 'set dine-in fan speed to 4')..."
                     className="flex-1 bg-transparent border-none text-slate-200 placeholder-slate-500 text-xs focus:outline-none"
                   />
                   <button
@@ -1186,73 +1081,6 @@ export default function App() {
                     <Send className="w-4 h-4" />
                   </button>
                 </form>
-              </div>
-
-            </div>
-
-            {/* Right Part: Scrollable Chat History */}
-            <div className="lg:col-span-5 flex flex-col justify-between relative bg-[#11131f]/20 border border-white/5 rounded-2xl p-6 overflow-hidden min-h-[520px]">
-              
-              {/* Header inside Panel */}
-              <div className="flex justify-between items-center relative z-10 border-b border-white/5 pb-3">
-                <h3 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-2 font-mono">
-                  <Terminal className="w-4 h-4 text-cyan-400" />
-                  Conversation Log
-                </h3>
-                <button 
-                  onClick={() => setChatMessages([
-                    {
-                      id: "cleared-initial",
-                      sender: "assistant",
-                      text: "Chat history cleared. Jerry is ready for commands.",
-                      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    }
-                  ])}
-                  className="text-[9px] text-rose-400 hover:text-rose-300 font-bold uppercase tracking-wider bg-rose-500/10 px-2 py-1 rounded transition-colors cursor-pointer"
-                >
-                  Clear Logs
-                </button>
-              </div>
-
-              {/* Scrollable messages area (Height designed to comfortably show ~7 messages with scroll) */}
-              <div className="relative z-10 flex-1 my-4 overflow-y-auto max-h-[380px] min-h-[380px] pr-2 space-y-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-                {chatMessages.map((msg) => (
-                  <div 
-                    key={msg.id} 
-                    className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"} w-full animate-fade-in`}
-                  >
-                    <div className="flex items-center gap-2 mb-1 px-1">
-                      <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest">
-                        {msg.sender === "user" ? "You" : "Jerry Assistant"}
-                      </span>
-                      <span className="text-[8px] font-mono text-slate-600">
-                        {msg.timestamp}
-                      </span>
-                    </div>
-                    <div 
-                      className={`text-xs px-4 py-2.5 rounded-2xl max-w-[85%] break-words leading-relaxed shadow-sm border ${
-                        msg.sender === "user" 
-                          ? "bg-purple-500/10 border-purple-500/20 text-purple-200 rounded-tr-none" 
-                          : "bg-slate-800/40 border-white/5 text-slate-200 rounded-tl-none"
-                      }`}
-                    >
-                      {msg.text}
-                    </div>
-                  </div>
-                ))}
-                {isProcessing && (
-                  <div className="flex flex-col items-start w-full animate-pulse">
-                    <div className="flex items-center gap-2 mb-1 px-1">
-                      <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest">Jerry Assistant</span>
-                      <span className="text-[8px] font-mono text-slate-600">processing</span>
-                    </div>
-                    <div className="bg-slate-800/20 border border-white/5 text-slate-400 text-xs px-4 py-2.5 rounded-2xl rounded-tl-none flex items-center gap-2">
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-                      <span>Jerry is processing command payload...</span>
-                    </div>
-                  </div>
-                )}
-                <div ref={chatEndRef} />
               </div>
 
             </div>

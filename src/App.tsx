@@ -385,7 +385,12 @@ export default function App() {
     }
 
     if (listening) {
-      recognitionRef.current?.stop();
+      try {
+        recognitionRef.current?.stop();
+        setListening(false);
+      } catch (err) {
+        console.warn("Error stopping speech recognition:", err);
+      }
     } else {
       try {
         window.speechSynthesis.cancel(); // Stop talking first
@@ -394,8 +399,10 @@ export default function App() {
           hasBeenWokenUpRef.current = true;
         }
         recognitionRef.current?.start();
+        setListening(true); // Immediate visual feedback for touchscreens
       } catch (err) {
         console.warn("Failed starting speech recognition:", err);
+        setListening(false);
       }
     }
   };

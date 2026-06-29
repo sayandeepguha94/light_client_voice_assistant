@@ -81,7 +81,7 @@ export default function ConnectionSettings({ config, onChange, onLog }: Connecti
       onLog(
         "warning",
         "Local IoT server unreachable.",
-        `Error: ${errorMsg}. If running in our cloud preview, direct network calls to a private home IP (192.168.29.112) will fail because private networks aren't routable from the public cloud. Try proxying or running this dashboard locally inside your FydeOS Crostini environment!`
+        `Error: ${errorMsg}. If running in our cloud preview, direct network calls to a private home IP (192.168.29.112) will fail because private networks aren't routable from the public cloud. Try proxying or running this dashboard locally inside your local Linux environment!`
       );
     } finally {
       setTesting(false);
@@ -175,7 +175,7 @@ export default function ConnectionSettings({ config, onChange, onLog }: Connecti
             <div>
               <p className="text-xs font-bold text-white">Proxied Server Connection</p>
               <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">
-                Funnels calls through our Node.js `/api/proxy`. Bypasses browser blocks entirely. Essential when running this app locally on FydeOS Linux!
+                Funnels calls through our Node.js `/api/proxy`. Bypasses browser blocks entirely. Essential when running this app locally in a Linux environment!
               </p>
             </div>
           </button>

@@ -1,6 +1,6 @@
 {
-  "name": "FydeOS Voice IoT Hub",
-  "description": "A voice assistant and local smart home dashboard for FydeOS, integrated with local IoT servers.",
+  "name": "Voice IoT Hub",
+  "description": "A voice assistant and local smart home dashboard integrated with local IoT servers.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

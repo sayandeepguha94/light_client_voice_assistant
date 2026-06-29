@@ -215,7 +215,7 @@ export default function App() {
       setLatency(`${ms}ms`);
     }, 5000);
 
-    addLog("info", "FydeOS Voice IoT Dashboard loaded.", "Awaiting connection parameters or local microphone triggers.");
+    addLog("info", "Voice IoT Dashboard loaded.", "Awaiting connection parameters or local microphone triggers.");
 
     // Check Speech Recognition capability
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -624,7 +624,7 @@ export default function App() {
       addLog(
         "warning",
         `LAN Server ${config.serverIp} unreachable`,
-        `Dashboard successfully simulated state change locally, but the remote server at http://${config.serverIp}:${config.serverPort} is currently offline.\nReason: ${dispatchError.message || "Timeout"}.\n\nTips:\n1. Open our "Setup Guide" tab to download a simple Python IoT Bridge Script to run on your local server.\n2. Ensure your FydeOS browser permissions permit mixed-content LAN queries.`
+        `Dashboard successfully simulated state change locally, but the remote server at http://${config.serverIp}:${config.serverPort} is currently offline.\nReason: ${dispatchError.message || "Timeout"}.\n\nTips:\n1. Open our "Setup Guide" tab to download a simple Python IoT Bridge Script to run on your local server.\n2. Ensure your browser permissions permit mixed-content LAN queries.`
       );
     }
   };
@@ -749,12 +749,12 @@ export default function App() {
           <div className={`w-3 h-3 rounded-full transition-all duration-500 ${listening ? "bg-purple-500 shadow-[0_0_12px_#a855f7]" : "bg-cyan-400 shadow-[0_0_10px_#22d3ee]"}`}></div>
           <div>
             <h1 className="text-sm font-bold tracking-[0.2em] uppercase text-cyan-400 flex items-center gap-2">
-              FydeOS Voice IoT Hub
+              Voice IoT Hub
               <span className="text-[9px] font-mono font-normal tracking-normal text-slate-400 lowercase px-2 py-0.5 rounded-full bg-white/5">
                 v1.2.0
               </span>
             </h1>
-            <p className="text-[10px] text-slate-400 font-mono">CROSTINI_LINUX_CONTAINER // SECURE_BRIDGE</p>
+            <p className="text-[10px] text-slate-400 font-mono">LOCAL_LINUX_CONTAINER // SECURE_BRIDGE</p>
           </div>
         </div>
 
@@ -975,7 +975,7 @@ export default function App() {
               <div className="mt-6 pt-4 border-t border-white/5 flex justify-between items-center text-xs text-slate-500">
                 <span className="flex items-center gap-1">
                   <Laptop className="w-3.5 h-3.5 text-slate-400" />
-                  FydeOS Subsystem Connection:
+                  Linux Subsystem Connection:
                 </span>
                 <span className="text-emerald-400 font-semibold font-mono">STABLE</span>
               </div>

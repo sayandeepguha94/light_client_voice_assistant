@@ -4,7 +4,7 @@ export interface Device {
   room: string; // "living room", "dine-in", "bedroom", "bedroom 2"
   deviceKey: string; // "party light", "ambient light", etc.
   entityId: string; // "switch.living_room_..."
-  category: "lighting" | "fan";
+  category: "lighting" | "fan" | "ac" | "media";
   on: boolean;
   value?: number; // speed/level
   unit?: string;

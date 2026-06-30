@@ -54,6 +54,7 @@ from tools import (
     room_on,
     room_off,
     get_state,
+    set_temp,
 )
 
 PORT = 8000
@@ -172,6 +173,11 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
             elif action == "set_fan_speed" and room and device:
                 result_msg = set_fan_speed(room, device, value)
                 print(f" -> Executed set_fan_speed({room}, {device}, {value}): {result_msg}")
+            elif action == "set_temp" and room and device:
+                # Set AC temperature
+                temp_val = int(value) if value is not None else 22
+                result_msg = set_temp(room, device, temp_val)
+                print(f" -> Executed set_temp({room}, {device}, {temp_val}): {result_msg}")
             
             elapsed = time.time() - time_init
             print(f"[Jerry Hub] Manual Action success: {result_msg} ({elapsed:.3f}s)")
@@ -197,7 +203,57 @@ if __name__ == "__main__":
     print("Directly connected to local Web Voice Hub!")
     server = HTTPServer(("0.0.0.0", PORT), JerryBridgeHandler)
     server.serve_forever()`,
-    chromeFlags: `chrome://flags/#allow-insecure-localhost`
+    chromeFlags: `chrome://flags/#allow-insecure-localhost`,
+    devicesModule: `DEVICES = {
+    "living room": {
+        "party light": "switch.living_room_4node_smart_switch_4_party_light",
+        "ambient light": "switch.living_room_4node_smart_switch_4_ambient_light",
+        "passage light": "switch.living_room_4node_smart_switch_4_passage_light",
+        "spot light": "switch.living_room_4node_smart_switch_4_spot_light",
+        "fan": "fan.fan_modular_switch",
+        "ac": "ebc64582fc835bb94dlmh1",
+        "tv": "eb96ab0b34a335a694gasf"
+    },
+    "dine-in": {
+        "ambient light": "switch.dine_in_4sw_modular_touch_ambient_light",
+        "spot light": "switch.dine_in_4sw_modular_touch_spot_light",
+        "low spot light": "switch.dine_in_4sw_modular_touch_low_spot_light",
+        "fan": "switch.dine_in_4sw_modular_touch_fan"
+    },
+    "bedroom": {
+        "ambient light": "switch.bedroom_4node_smart_switch_2_ambient_light",
+        "bedside light": "switch.bedroom_4node_smart_switch_2_bedside_light",
+        "fan": "switch.bedroom_4node_smart_switch_2_fan",
+        "spot light": "switch.bedroom_4node_smart_switch_2_spot_light"
+    },
+    "bedroom 2": {
+        "low ambient light": "switch.bedroom_2_4node_smart_switch_3_low_ambient_light",
+        "fan": "switch.bedroom_2_4node_smart_switch_3_fan",
+        "spot light": "switch.bedroom_2_4node_smart_switch_3_spot_light",
+        "high ambient light": "switch.bedroom_2_4node_smart_switch_3_high_ambient_light"
+    }
+}`,
+    toolsModule: `def set_temp(room, device, temp = 22):
+    if room not in DEVICES:
+        return "Room not found."
+
+    if device not in DEVICES[room]:
+        return "Device not found."
+
+    api = TuyaOpenAPI(ENDPOINT, ACCESS_ID, ACCESS_KEY)
+    api.connect()
+
+    room = room.lower()
+    device = device.lower()
+
+    entity = DEVICES[room][device]
+
+    response = api.post(
+        f"/v1.0/devices/{entity}/commands",
+        {"commands": [{"code": "temp", "value": temp}]}
+    )
+    msg = f"AC temperature of {room} is set to {temp}"
+    return msg`
   };
 
   return (
@@ -291,6 +347,42 @@ if __name__ == "__main__":
             >
               {copiedIndex === 2 ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
             </button>
+          </div>
+
+          <div className="pt-2">
+            <h4 className="text-xs font-semibold text-slate-300 mb-1">Local Config Files (devices.py & tools.py):</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <p className="text-[10px] text-slate-400 font-mono mb-1">devices.py</p>
+                <div className="relative">
+                  <pre className="text-[10px] font-mono p-3 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-gray-300 overflow-x-auto whitespace-pre leading-relaxed max-h-48">
+                    {codeBlocks.devicesModule}
+                  </pre>
+                  <button
+                    onClick={() => copyToClipboard(codeBlocks.devicesModule, 21)}
+                    className="absolute top-1.5 right-1.5 p-1 rounded-md bg-[#161a22] hover:bg-[#1f2633] text-gray-400 hover:text-white transition-colors border border-[#1e222b]"
+                    title="Copy devices.py"
+                  >
+                    {copiedIndex === 21 ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 font-mono mb-1">tools.py (set_temp added)</p>
+                <div className="relative">
+                  <pre className="text-[10px] font-mono p-3 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-gray-300 overflow-x-auto whitespace-pre leading-relaxed max-h-48">
+                    {codeBlocks.toolsModule}
+                  </pre>
+                  <button
+                    onClick={() => copyToClipboard(codeBlocks.toolsModule, 22)}
+                    className="absolute top-1.5 right-1.5 p-1 rounded-md bg-[#161a22] hover:bg-[#1f2633] text-gray-400 hover:text-white transition-colors border border-[#1e222b]"
+                    title="Copy tools.py"
+                  >
+                    {copiedIndex === 22 ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

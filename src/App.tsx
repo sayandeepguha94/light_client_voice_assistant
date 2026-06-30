@@ -18,6 +18,8 @@ const INITIAL_DEVICES: Device[] = [
   { id: "living room.passage light", name: "Passage Light", room: "living room", deviceKey: "passage light", entityId: "switch.living_room_4node_smart_switch_4_passage_light", category: "lighting", on: false, statusText: "Off" },
   { id: "living room.spot light", name: "Spot Light", room: "living room", deviceKey: "spot light", entityId: "switch.living_room_4node_smart_switch_4_spot_light", category: "lighting", on: false, statusText: "Off" },
   { id: "living room.fan", name: "Ceiling Fan", room: "living room", deviceKey: "fan", entityId: "fan.fan_modular_switch", category: "fan", on: true, value: 3, unit: " Speed", statusText: "Speed 3" },
+  { id: "living room.ac", name: "Air Conditioner", room: "living room", deviceKey: "ac", entityId: "ebc64582fc835bb94dlmh1", category: "ac", on: false, value: 22, unit: "°C", statusText: "Off" },
+  { id: "living room.tv", name: "Television", room: "living room", deviceKey: "tv", entityId: "eb96ab0b34a335a694gasf", category: "media", on: false, statusText: "Off" },
 
   // dine-in
   { id: "dine-in.ambient light", name: "Ambient Light", room: "dine-in", deviceKey: "ambient light", entityId: "switch.dine_in_4sw_modular_touch_ambient_light", category: "lighting", on: false, statusText: "Off" },
@@ -577,11 +579,15 @@ export default function App() {
             const updated = { ...dev };
             if (action === "turn_on" || action === "turn_off") {
               updated.on = action === "turn_on";
-              updated.statusText = action === "turn_on" ? "On" : "Off";
+              updated.statusText = action === "turn_on" ? (dev.category === "ac" && dev.value ? `${dev.value}°C` : "On") : "Off";
             } else if (action === "set_fan_speed" && value !== undefined) {
               updated.value = value;
               updated.on = true;
               updated.statusText = `Speed ${value}`;
+            } else if (action === "set_temp" && value !== undefined) {
+              updated.value = value;
+              updated.on = true;
+              updated.statusText = `${value}°C`;
             }
             return updated;
           }
@@ -757,6 +763,10 @@ export default function App() {
         return <Lightbulb className={`w-5 h-5 ${dev.on ? activeColor : inactiveColor}`} />;
       case "fan":
         return <Wind className={`w-5 h-5 ${dev.on ? "text-teal-400 animate-[spin_4s_linear_infinite]" : inactiveColor}`} />;
+      case "ac":
+        return <Thermometer className={`w-5 h-5 ${dev.on ? "text-amber-400 animate-pulse" : inactiveColor}`} />;
+      case "media":
+        return <Laptop className={`w-5 h-5 ${dev.on ? "text-purple-400" : inactiveColor}`} />;
       default:
         return <Airplay className={`w-5 h-5 ${dev.on ? activeColor : inactiveColor}`} />;
     }
@@ -999,6 +1009,22 @@ export default function App() {
                                     />
                                     <span className="text-[10px] font-mono text-cyan-400 font-bold bg-cyan-400/5 px-1.5 py-0.5 rounded">
                                       Speed {dev.value}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {dev.on && dev.category === "ac" && dev.value !== undefined && (
+                                  <div className="flex items-center gap-2.5 pt-1">
+                                    <input
+                                      type="range"
+                                      min="16"
+                                      max="30"
+                                      value={dev.value}
+                                      onChange={(e) => executeDeviceAction(dev.room, dev.deviceKey, "set_temp", parseInt(e.target.value, 10))}
+                                      className="flex-1 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                                    />
+                                    <span className="text-[10px] font-mono text-amber-400 font-bold bg-amber-400/5 px-1.5 py-0.5 rounded">
+                                      {dev.value}°C
                                     </span>
                                   </div>
                                 )}

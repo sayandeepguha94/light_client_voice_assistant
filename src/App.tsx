@@ -370,7 +370,7 @@ export default function App() {
       if (e.code === "Space" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
         e.preventDefault();
         toggleListening();
-      } else if (e.key === "MediaPlayPause" || e.key === "Play" || e.key === "Pause") {
+      } else if (e.key === "Play") {
         e.preventDefault();
         addLog("info", `Bluetooth/Media key detected (${e.key})`, "Toggling Voice Listen Mode...");
         toggleListening();
@@ -378,15 +378,11 @@ export default function App() {
     };
     window.addEventListener("keydown", handleKeyDown);
 
-    // Also register Media Session API to capture hardware play/pause (from Bluetooth headsets/speakers)
+    // Also register Media Session API to capture hardware play (from Bluetooth headsets/speakers)
     if ('mediaSession' in navigator) {
       try {
         navigator.mediaSession.setActionHandler('play', () => {
           addLog("info", "Bluetooth Call Button / Play trigger received", "Toggling Voice Listen Mode...");
-          toggleListening();
-        });
-        navigator.mediaSession.setActionHandler('pause', () => {
-          addLog("info", "Bluetooth Call Button / Pause trigger received", "Toggling Voice Listen Mode...");
           toggleListening();
         });
       } catch (err) {
@@ -399,7 +395,6 @@ export default function App() {
       if ('mediaSession' in navigator) {
         try {
           navigator.mediaSession.setActionHandler('play', null);
-          navigator.mediaSession.setActionHandler('pause', null);
         } catch (e) {
           // ignore cleanup errors
         }

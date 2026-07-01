@@ -422,6 +422,126 @@ export default function App() {
     }
   };
 
+  // Keep a mutable ref of the latest toggleListening function to avoid stale closure issues in background listeners
+  const toggleListeningRef = useRef(toggleListening);
+  useEffect(() => {
+    toggleListeningRef.current = toggleListening;
+  }, [toggleListening]);
+
+  // Activate Media Session & Bluetooth Controls safely (preventing memory leaks, multiple instances or system lag)
+  useEffect(() => {
+    addLog("info", "Background media controller activation triggered.");
+    console.log("Activating media session...");
+
+    // Create silent audio so the page becomes the active media controller
+    const audio = new Audio();
+    audio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA="; // silent audio
+    audio.loop = true;
+
+    const startAudio = () => {
+      audio.play()
+        .then(() => {
+          addLog("success", "Background media session activated successfully.");
+          console.log("Audio play successful.");
+        })
+        .catch((err) => {
+          console.warn("Autoplay blocked. Click anywhere on the page to activate.", err);
+        });
+    };
+
+    // Attempt autoplay
+    startAudio();
+
+    // Interaction triggers to bypass browser autoplay policy
+    const handleFirstInteraction = () => {
+      startAudio();
+      window.removeEventListener("click", handleFirstInteraction);
+      window.removeEventListener("keydown", handleFirstInteraction);
+    };
+    window.addEventListener("click", handleFirstInteraction);
+    window.addEventListener("keydown", handleFirstInteraction);
+
+    // Listen for media session actions
+    if ("mediaSession" in navigator) {
+      const actions = [
+        "play",
+        "pause",
+        "previoustrack",
+        "nexttrack",
+        "stop",
+        "seekbackward",
+        "seekforward"
+      ] as const;
+
+      actions.forEach(action => {
+        try {
+          navigator.mediaSession.setActionHandler(action, () => {
+            console.log("Bluetooth button pressed:", action);
+            addLog("info", `Bluetooth controller action detected: ${action.toUpperCase()}`);
+            
+            // Map main play/pause Bluetooth events to toggle the voice command listener
+            if (action === "play" || action === "pause") {
+              addLog("voice", `Toggling Voice Assistant from Bluetooth ${action} action.`);
+              toggleListeningRef.current();
+            }
+          });
+        } catch (e) {
+          console.warn("Action not supported:", action);
+        }
+      });
+    }
+
+    // Fallback for devices that send keycodes (filtered to avoid logging/lagging while typing in inputs)
+    const handleDevicesKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement?.tagName === "INPUT" || 
+        document.activeElement?.tagName === "TEXTAREA" ||
+        document.activeElement?.hasAttribute("contenteditable")
+      ) {
+        return;
+      }
+      
+      console.log("Key pressed:", e.code);
+      addLog("info", `Hardware controller key detected: ${e.code}`);
+    };
+    window.addEventListener("keydown", handleDevicesKeyDown);
+
+    // Cleanup when component unmounts to prevent memory/event leak (keeps system fast and snappy)
+    return () => {
+      console.log("Deactivating media session...");
+      try {
+        audio.pause();
+        audio.src = "";
+        audio.load();
+      } catch (err) {
+        console.warn("Error stopping background audio:", err);
+      }
+
+      window.removeEventListener("click", handleFirstInteraction);
+      window.removeEventListener("keydown", handleFirstInteraction);
+      window.removeEventListener("keydown", handleDevicesKeyDown);
+
+      if ("mediaSession" in navigator) {
+        const actions = [
+          "play",
+          "pause",
+          "previoustrack",
+          "nexttrack",
+          "stop",
+          "seekbackward",
+          "seekforward"
+        ] as const;
+        actions.forEach(action => {
+          try {
+            navigator.mediaSession.setActionHandler(action, null);
+          } catch (e) {
+            // ignore
+          }
+        });
+      }
+    };
+  }, []);
+
   // core command processor
   const handleProcessCommand = async (text: string) => {
     if (!text.trim()) return;

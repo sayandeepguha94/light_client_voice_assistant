@@ -101,49 +101,6 @@ export default function App() {
   const isProcessingRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const hasBeenWokenUpRef = useRef(false);
-  const isRecognitionActiveRef = useRef(false);
-  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
-  const lastMediaTriggerTimeRef = useRef<number>(0);
-
-  const safeStartRecognition = (force: boolean = false) => {
-    if (!speechSupported || !recognitionRef.current) return;
-    if (!force) {
-      if (isSpeakingRef.current || isProcessingRef.current) return;
-    }
-    if (isRecognitionActiveRef.current) return;
-    try {
-      recognitionRef.current.start();
-      isRecognitionActiveRef.current = true;
-    } catch (e) {
-      console.warn("safeStartRecognition notice:", e);
-    }
-  };
-
-  const safeStopRecognition = () => {
-    if (!speechSupported || !recognitionRef.current) return;
-    try {
-      recognitionRef.current.stop();
-    } catch (e) {
-      console.warn("safeStopRecognition notice:", e);
-    }
-    isRecognitionActiveRef.current = false;
-  };
-
-  const playSilenceForMediaSession = () => {
-    if (!silentAudioRef.current) {
-      const audio = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=");
-      audio.loop = true;
-      audio.volume = 0.001;
-      silentAudioRef.current = audio;
-    }
-    silentAudioRef.current.play().then(() => {
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.playbackState = "playing";
-      }
-    }).catch(err => {
-      console.log("MediaSession silence activator blocked or failed:", err);
-    });
-  };
 
   // Helper: Log message to dashboard terminal console
   const addLog = (type: SystemLog["type"], message: string, details?: string) => {
@@ -205,7 +162,11 @@ export default function App() {
         setIsSpeaking(true);
         isSpeakingRef.current = true;
         // Pause listening while speaking to prevent self-triggering
-        safeStopRecognition();
+        try {
+          recognitionRef.current?.stop();
+        } catch (err) {
+          console.warn("Failed to stop listening on speech start:", err);
+        }
       };
 
       utterance.onend = () => {
@@ -215,7 +176,11 @@ export default function App() {
         if (wakeWordEnabledRef.current && !isProcessingRef.current) {
           setTimeout(() => {
             if (wakeWordEnabledRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
-              safeStartRecognition();
+              try {
+                recognitionRef.current?.start();
+              } catch (e) {
+                console.warn("Failed to restart wake word listening after speaking end:", e);
+              }
             }
           }, 300);
         }
@@ -227,7 +192,11 @@ export default function App() {
         if (wakeWordEnabledRef.current && !isProcessingRef.current) {
           setTimeout(() => {
             if (wakeWordEnabledRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
-              safeStartRecognition();
+              try {
+                recognitionRef.current?.start();
+              } catch (e) {
+                console.warn("Failed to restart wake word listening after speaking error:", e);
+              }
             }
           }, 300);
         }
@@ -266,7 +235,6 @@ export default function App() {
 
       rec.onstart = () => {
         setListening(true);
-        isRecognitionActiveRef.current = true;
         setTranscript("");
         // Play beep only for active triggers, not background wake loop restarts
         if (!wakeWordEnabledRef.current || hasBeenWokenUpRef.current) {
@@ -281,19 +249,17 @@ export default function App() {
         const lowerText = cleanText.toLowerCase();
 
         if (wakeWordEnabledRef.current) {
-          const wakeWords = ["jerry", "gerry", "cherry", "sherry", "berry", "terry", "hairy", "jarry", "gary", "gari", "gerrit", "jerri", "jeri", "jere", "jury", "very", "hey jerry", "hello jerry"];
-          const matchedWakeWord = wakeWords.find(w => lowerText.includes(w));
-          if (matchedWakeWord) {
-            const jerryIndex = lowerText.indexOf(matchedWakeWord);
-            const commandPart = cleanText.slice(jerryIndex + matchedWakeWord.length).trim();
+          if (lowerText.includes("jerry")) {
+            const jerryIndex = lowerText.indexOf("jerry");
+            const commandPart = cleanText.slice(jerryIndex + 5).trim();
 
             if (commandPart.length > 1) {
               setTranscript(cleanText);
-              addLog("voice", `Wake word matched ("${matchedWakeWord}") + Command: "${cleanText}"`);
+              addLog("voice", `Wake word + Command detected: "${cleanText}"`);
               handleProcessCommand(commandPart);
             } else {
               setTranscript("Jerry?");
-              addLog("voice", `Wake word matched ("${matchedWakeWord}"). Ready for your command!`);
+              addLog("voice", `Wake word detected. Ready for your command!`);
               playBeep(660, 0.1, "sine");
               setTimeout(() => playBeep(880, 0.1, "sine"), 100);
               setAiResponse("Yes? I am listening...");
@@ -318,7 +284,6 @@ export default function App() {
 
       rec.onerror = (event: any) => {
         console.error("Speech Recognition error:", event.error);
-        isRecognitionActiveRef.current = false;
         if (event.error !== "no-speech") {
           addLog("error", `Voice recognition anomaly: ${event.error}`, "Ensure microphone access is enabled in Chrome settings.");
           playBeep(220, 0.25, "triangle"); // low error beep
@@ -328,12 +293,15 @@ export default function App() {
 
       rec.onend = () => {
         setListening(false);
-        isRecognitionActiveRef.current = false;
         // If wake word is enabled and we are not speaking or processing, restart background listener!
         if (wakeWordEnabledRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
           setTimeout(() => {
             if (wakeWordEnabledRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
-              safeStartRecognition();
+              try {
+                recognitionRef.current?.start();
+              } catch (e) {
+                console.warn("Failed to auto-restart speech recognition:", e);
+              }
             }
           }, 300);
         }
@@ -361,170 +329,52 @@ export default function App() {
   // Sync states to refs to avoid stale closures in voice recognition callbacks
   useEffect(() => {
     wakeWordEnabledRef.current = wakeWordEnabled;
-    if (wakeWordEnabled && speechSupported) {
+    if (wakeWordEnabled && !listening && speechSupported) {
       try {
         window.speechSynthesis.cancel();
-        isSpeakingRef.current = false;
-        setIsSpeaking(false);
-        safeStopRecognition();
-        setTimeout(() => {
-          if (wakeWordEnabledRef.current) {
-            safeStartRecognition();
-            addLog("info", "Background listening for Wake Word 'Jerry' activated.");
-          }
-        }, 200);
+        recognitionRef.current?.start();
+        addLog("info", "Background listening for Wake Word 'Jerry' activated.");
       } catch (err) {
         console.warn("Failed starting speech recognition for wake word:", err);
       }
-    } else if (!wakeWordEnabled && speechSupported) {
-      safeStopRecognition();
-      addLog("info", "Background listening for Wake Word deactivated.");
+    } else if (!wakeWordEnabled && listening) {
+      // If disabled and we were listening in wake word mode, stop it
+      try {
+        recognitionRef.current?.stop();
+        addLog("info", "Background listening for Wake Word deactivated.");
+      } catch (err) {
+        console.warn("Failed stopping speech recognition:", err);
+      }
     }
-  }, [wakeWordEnabled, speechSupported]);
+  }, [wakeWordEnabled, listening, speechSupported]);
 
   useEffect(() => {
     isProcessingRef.current = isProcessing;
-    if (!isProcessing && wakeWordEnabled && !isSpeakingRef.current && speechSupported) {
+    if (!isProcessing && wakeWordEnabled && !listening && !isSpeakingRef.current && speechSupported) {
       setTimeout(() => {
         if (!isProcessingRef.current && wakeWordEnabledRef.current && !isSpeakingRef.current) {
-          safeStartRecognition();
+          try {
+            recognitionRef.current?.start();
+          } catch (e) {
+            console.warn("Failed to resume wake word after processing:", e);
+          }
         }
       }, 500);
     }
-  }, [isProcessing, wakeWordEnabled, speechSupported]);
+  }, [isProcessing, wakeWordEnabled, listening, speechSupported]);
 
-  // Listen for spacebar & bluetooth/media keys to trigger voice commands
+  // Listen for spacebar to trigger voice commands
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      
-      const isSpace = e.code === "Space" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA";
-      
-      const mediaKeys = [
-        "Play", "Pause", "MediaPlayPause", "MediaStop",
-        "MediaTrackNext", "MediaTrackPrevious", "MediaPlay", "MediaPause",
-        "MediaNextTrack", "MediaPreviousTrack", "FastForward", "Rewind"
-      ];
-      
-      const isMediaKey = mediaKeys.includes(e.key) || mediaKeys.includes(e.code) || e.key.startsWith("Media") || e.code.startsWith("Media");
-      
-      if (isSpace || isMediaKey) {
+      if (e.code === "Space" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
         e.preventDefault();
-        const now = Date.now();
-        if (now - lastMediaTriggerTimeRef.current < 1000) {
-          console.log("Ignoring rapid keyboard trigger:", e.code || e.key);
-          return;
-        }
-        lastMediaTriggerTimeRef.current = now;
-
-        addLog("info", `Bluetooth/Media key detected (${e.key || e.code})`, "Toggling Voice Listen Mode...");
-        playSilenceForMediaSession();
         toggleListening();
-      } else {
-        console.log("Key pressed:", e.code || e.key);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
-
-    // Also register Media Session API to capture hardware media triggers (from Bluetooth headsets/speakers)
-    if ('mediaSession' in navigator) {
-      console.log("Activating media session...");
-      const actions: MediaSessionAction[] = [
-        'play',
-        'pause',
-        'previoustrack',
-        'nexttrack',
-        'stop',
-        'seekbackward',
-        'seekforward'
-      ];
-
-      actions.forEach(action => {
-        try {
-          navigator.mediaSession.setActionHandler(action, () => {
-            const now = Date.now();
-            if (now - lastMediaTriggerTimeRef.current < 1000) {
-              console.log("Ignoring rapid/automatic media session trigger:", action);
-              return;
-            }
-            lastMediaTriggerTimeRef.current = now;
-
-            addLog("info", `Bluetooth hardware button trigger received [${action}]`, "Toggling Voice Listen Mode...");
-            playSilenceForMediaSession();
-            
-            // Mirror play state correctly on the session
-            if (action === "play") {
-              navigator.mediaSession.playbackState = "playing";
-            } else if (action === "pause") {
-              navigator.mediaSession.playbackState = "paused";
-            }
-
-            toggleListening();
-          });
-        } catch (err) {
-          console.warn(`MediaSession action handler failure for ${action}:`, err);
-        }
-      });
-    }
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      if ('mediaSession' in navigator) {
-        const allActions: MediaSessionAction[] = [
-          'play',
-          'pause',
-          'previoustrack',
-          'nexttrack',
-          'stop',
-          'seekbackward',
-          'seekforward'
-        ];
-        allActions.forEach(action => {
-          try {
-            navigator.mediaSession.setActionHandler(action, null);
-          } catch (e) {
-            // ignore cleanup errors
-          }
-        });
-      }
-    };
-  }, [speechSupported, wakeWordEnabled]);
-
-  // Warm up MediaSession and silent looping audio upon first user gesture
-  useEffect(() => {
-    const warmup = () => {
-      playSilenceForMediaSession();
-      if ('mediaSession' in navigator) {
-        try {
-          navigator.mediaSession.playbackState = "playing";
-          navigator.mediaSession.metadata = new MediaMetadata({
-            title: 'Jerry Voice Assistant',
-            artist: 'Voice IoT Hub',
-            album: 'Smart Home Hub',
-            artwork: [
-              { src: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=128&h=128&fit=crop', sizes: '128x128', type: 'image/jpeg' }
-            ]
-          });
-        } catch (e) {
-          console.warn("Could not set initial media session state/metadata:", e);
-        }
-      }
-      // Clean up listeners
-      window.removeEventListener("click", warmup);
-      window.removeEventListener("keydown", warmup);
-      window.removeEventListener("touchstart", warmup);
-    };
-
-    window.addEventListener("click", warmup);
-    window.addEventListener("keydown", warmup);
-    window.addEventListener("touchstart", warmup);
-
-    return () => {
-      window.removeEventListener("click", warmup);
-      window.removeEventListener("keydown", warmup);
-      window.removeEventListener("touchstart", warmup);
-    };
-  }, []);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [listening, speechSupported]);
 
   // Synchronize live states on start
   useEffect(() => {
@@ -549,28 +399,22 @@ export default function App() {
       return;
     }
 
-    if (isRecognitionActiveRef.current || listening) {
-      safeStopRecognition();
-      setListening(false);
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.playbackState = "paused";
+    if (listening) {
+      try {
+        recognitionRef.current?.stop();
+        setListening(false);
+      } catch (err) {
+        console.warn("Error stopping speech recognition:", err);
       }
     } else {
-      playSilenceForMediaSession();
       try {
         window.speechSynthesis.cancel(); // Stop talking first
-        isSpeakingRef.current = false;
-        setIsSpeaking(false);
-        
         // If wake word is enabled, mark as woken up so it processes this direct manual trigger as a command
         if (wakeWordEnabled) {
           hasBeenWokenUpRef.current = true;
         }
-        safeStartRecognition(true);
+        recognitionRef.current?.start();
         setListening(true); // Immediate visual feedback for touchscreens
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.playbackState = "playing";
-        }
       } catch (err) {
         console.warn("Failed starting speech recognition:", err);
         setListening(false);

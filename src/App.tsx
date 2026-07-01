@@ -478,6 +478,8 @@ export default function App() {
     addLog("info", "Background media controller activation triggered.");
     console.log("Activating media session...");
 
+    let lastToggleTime = 0;
+
     // Create silent audio of 2 seconds so the browser does not spin-loop a 0-second file at 100% CPU
     const silentAudioUrl = createSilentWavUrl(2, 8000);
     const audio = new Audio();
@@ -526,8 +528,14 @@ export default function App() {
             
             // Map main play/pause Bluetooth events to toggle the voice command listener
             if (action === "play" || action === "pause") {
-              addLog("voice", `Toggling Voice Assistant from Bluetooth ${action} action.`);
-              toggleListeningRef.current();
+              const now = Date.now();
+              if (now - lastToggleTime > 800) {
+                lastToggleTime = now;
+                addLog("voice", `Toggling Voice Assistant from Bluetooth ${action} action.`);
+                toggleListeningRef.current();
+              } else {
+                console.log(`Ignored rapid duplicate Bluetooth release event: ${action}`);
+              }
             }
           });
         } catch (e) {

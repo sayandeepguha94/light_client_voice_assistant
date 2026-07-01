@@ -101,7 +101,6 @@ export default function App() {
   const isProcessingRef = useRef(false);
   const isSpeakingRef = useRef(false);
   const hasBeenWokenUpRef = useRef(false);
-  const listeningRef = useRef(false);
 
   // Helper: Log message to dashboard terminal console
   const addLog = (type: SystemLog["type"], message: string, details?: string) => {
@@ -393,105 +392,6 @@ export default function App() {
       }, 100);
     }
   }, [chatMessages, activeTab]);
-
-  // Sync listening state to ref
-  useEffect(() => {
-    listeningRef.current = listening;
-  }, [listening]);
-
-  // Set up lag-free silent audio engine and Bluetooth button presses
-  useEffect(() => {
-    let silentAudioCtx: AudioContext | null = null;
-
-    const initSilentAudio = () => {
-      if (silentAudioCtx) return;
-      try {
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioContextClass) {
-          silentAudioCtx = new AudioContextClass();
-          const oscillator = silentAudioCtx.createOscillator();
-          const gainNode = silentAudioCtx.createGain();
-          
-          gainNode.gain.value = 0; // Absolute silence
-          oscillator.connect(gainNode);
-          gainNode.connect(silentAudioCtx.destination);
-          oscillator.start();
-          
-          addLog("success", "Lag-free silent audio engine initialized.", "Active and listening for Bluetooth button play/pause commands.");
-          console.log("✅ Lag-free silent audio active. Ready for Bluetooth buttons.");
-        }
-      } catch (err) {
-        console.warn("Failed to initialize silent AudioContext:", err);
-      }
-    };
-
-    document.addEventListener("click", initSilentAudio, { once: true });
-
-    // Listen for Bluetooth button presses and trigger Speech Recognition
-    if ("mediaSession" in navigator) {
-      // Most Bluetooth mics map their main button to 'play' or 'pause'
-      const actions: Array<"play" | "pause"> = ["play", "pause"];
-      
-      actions.forEach(action => {
-        try {
-          navigator.mediaSession.setActionHandler(action, () => {
-            addLog("info", `Bluetooth button pressed: ${action}`);
-            console.log(`Bluetooth button pressed: ${action}`);
-            
-            if (!speechSupported) {
-              addLog("warning", "Speech Recognition is offline.", "Bluetooth buttons cannot trigger recognition.");
-              return;
-            }
-
-            if (recognitionRef.current) {
-              if (!listeningRef.current) {
-                try {
-                  window.speechSynthesis.cancel(); // Stop talking first
-                  if (wakeWordEnabledRef.current) {
-                    hasBeenWokenUpRef.current = true;
-                  }
-                  recognitionRef.current.start();
-                  addLog("info", "Voice recognition started via Bluetooth button.");
-                } catch (e) {
-                  console.warn("Speech recognition already running or failed to start:", e);
-                }
-              } else {
-                try {
-                  recognitionRef.current.stop();
-                  addLog("info", "Voice recognition stopped via Bluetooth button.");
-                } catch (e) {
-                  console.warn("Failed to stop speech recognition:", e);
-                }
-              }
-            }
-          });
-        } catch (e) {
-          console.warn(`Action not supported: ${action}`, e);
-        }
-      });
-    }
-
-    return () => {
-      document.removeEventListener("click", initSilentAudio);
-      if (silentAudioCtx) {
-        try {
-          silentAudioCtx.close();
-        } catch (e) {
-          console.warn("Failed to close silent AudioContext:", e);
-        }
-      }
-      if ("mediaSession" in navigator) {
-        const actions: Array<"play" | "pause"> = ["play", "pause"];
-        actions.forEach(action => {
-          try {
-            navigator.mediaSession.setActionHandler(action, null);
-          } catch (e) {
-            // ignore
-          }
-        });
-      }
-    };
-  }, [speechSupported]);
 
   const toggleListening = () => {
     if (!speechSupported) {

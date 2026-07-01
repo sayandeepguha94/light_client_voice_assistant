@@ -103,6 +103,7 @@ export default function App() {
   const hasBeenWokenUpRef = useRef(false);
   const isRecognitionActiveRef = useRef(false);
   const silentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const lastMediaTriggerTimeRef = useRef<number>(0);
 
   const safeStartRecognition = (force: boolean = false) => {
     if (!speechSupported || !recognitionRef.current) return;
@@ -409,6 +410,13 @@ export default function App() {
       
       if (isSpace || isMediaKey) {
         e.preventDefault();
+        const now = Date.now();
+        if (now - lastMediaTriggerTimeRef.current < 1000) {
+          console.log("Ignoring rapid keyboard trigger:", e.code || e.key);
+          return;
+        }
+        lastMediaTriggerTimeRef.current = now;
+
         addLog("info", `Bluetooth/Media key detected (${e.key || e.code})`, "Toggling Voice Listen Mode...");
         playSilenceForMediaSession();
         toggleListening();
@@ -434,6 +442,13 @@ export default function App() {
       actions.forEach(action => {
         try {
           navigator.mediaSession.setActionHandler(action, () => {
+            const now = Date.now();
+            if (now - lastMediaTriggerTimeRef.current < 1000) {
+              console.log("Ignoring rapid/automatic media session trigger:", action);
+              return;
+            }
+            lastMediaTriggerTimeRef.current = now;
+
             addLog("info", `Bluetooth hardware button trigger received [${action}]`, "Toggling Voice Listen Mode...");
             playSilenceForMediaSession();
             
@@ -539,13 +554,6 @@ export default function App() {
       setListening(false);
       if ('mediaSession' in navigator) {
         navigator.mediaSession.playbackState = "paused";
-      }
-      if (silentAudioRef.current) {
-        try {
-          silentAudioRef.current.pause();
-        } catch (e) {
-          // ignore
-        }
       }
     } else {
       playSilenceForMediaSession();

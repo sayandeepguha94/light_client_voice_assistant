@@ -40,6 +40,51 @@ const INITIAL_DEVICES: Device[] = [
   { id: "bedroom 2.high ambient light", name: "High Ambient Light", room: "bedroom 2", deviceKey: "high ambient light", entityId: "switch.bedroom_2_4node_smart_switch_3_high_ambient_light", category: "lighting", on: false, statusText: "Off" }
 ];
 
+// Dynamically creates a 2-second silent WAV file in-memory.
+// Browsers have an optimization/loop bug with ultra-short (0-byte/header-only) audio files
+// which causes them to spin-loop at 100% CPU. A 2-second silent audio file solves this completely.
+const createSilentWavUrl = (durationSeconds = 2, sampleRate = 8000): string => {
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+  const blockAlign = (numChannels * bitsPerSample) / 8;
+  const numSamples = sampleRate * durationSeconds;
+  const dataSize = numSamples * blockAlign;
+  const chunkSize = 36 + dataSize;
+
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  // RIFF identifier "RIFF"
+  view.setUint32(0, 0x52494646, false);
+  // File size minus 8
+  view.setUint32(4, chunkSize, true);
+  // WAVE identifier
+  view.setUint32(8, 0x57415645, false);
+
+  // format chunk identifier "fmt "
+  view.setUint32(12, 0x666d7420, false);
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+
+  // data chunk identifier "data"
+  view.setUint32(36, 0x64617461, false);
+  view.setUint32(40, dataSize, true);
+
+  // Silence is represented by zeros in 16-bit PCM
+  for (let i = 0; i < numSamples; i++) {
+    view.setInt16(44 + i * 2, 0, true);
+  }
+
+  const blob = new Blob([buffer], { type: "audio/wav" });
+  return URL.createObjectURL(blob);
+};
+
 export default function App() {
   // Navigation: "devices" | "chat" | "console" | "gateway" | "guide"
   const [activeTab, setActiveTab] = useState<"devices" | "chat" | "console" | "gateway" | "guide">("devices");
@@ -433,16 +478,16 @@ export default function App() {
     addLog("info", "Background media controller activation triggered.");
     console.log("Activating media session...");
 
-    // Create silent audio so the page becomes the active media controller
+    // Create silent audio of 2 seconds so the browser does not spin-loop a 0-second file at 100% CPU
+    const silentAudioUrl = createSilentWavUrl(2, 8000);
     const audio = new Audio();
-    audio.src = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA="; // silent audio
+    audio.src = silentAudioUrl;
     audio.loop = true;
 
     const startAudio = () => {
       audio.play()
         .then(() => {
-          addLog("success", "Background media session activated successfully.");
-          console.log("Audio play successful.");
+          console.log("Silent background audio play successful.");
         })
         .catch((err) => {
           console.warn("Autoplay blocked. Click anywhere on the page to activate.", err);
@@ -515,6 +560,12 @@ export default function App() {
         audio.load();
       } catch (err) {
         console.warn("Error stopping background audio:", err);
+      }
+
+      try {
+        URL.revokeObjectURL(silentAudioUrl);
+      } catch (err) {
+        console.warn("Error revoking silent audio ObjectURL:", err);
       }
 
       window.removeEventListener("click", handleFirstInteraction);

@@ -363,17 +363,48 @@ export default function App() {
     }
   }, [isProcessing, wakeWordEnabled, listening, speechSupported]);
 
-  // Listen for spacebar to trigger voice commands
+  // Listen for spacebar & bluetooth/media keys to trigger voice commands
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
       if (e.code === "Space" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
         e.preventDefault();
         toggleListening();
+      } else if (e.key === "MediaPlayPause" || e.key === "Play" || e.key === "Pause") {
+        e.preventDefault();
+        addLog("info", `Bluetooth/Media key detected (${e.key})`, "Toggling Voice Listen Mode...");
+        toggleListening();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+
+    // Also register Media Session API to capture hardware play/pause (from Bluetooth headsets/speakers)
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.setActionHandler('play', () => {
+          addLog("info", "Bluetooth Call Button / Play trigger received", "Toggling Voice Listen Mode...");
+          toggleListening();
+        });
+        navigator.mediaSession.setActionHandler('pause', () => {
+          addLog("info", "Bluetooth Call Button / Pause trigger received", "Toggling Voice Listen Mode...");
+          toggleListening();
+        });
+      } catch (err) {
+        console.warn("MediaSession action handler failure:", err);
+      }
+    }
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      if ('mediaSession' in navigator) {
+        try {
+          navigator.mediaSession.setActionHandler('play', null);
+          navigator.mediaSession.setActionHandler('pause', null);
+        } catch (e) {
+          // ignore cleanup errors
+        }
+      }
+    };
   }, [listening, speechSupported]);
 
   // Synchronize live states on start

@@ -203,93 +203,103 @@ export default function App() {
         window.speechSynthesis.resume();
       }
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      activeUtteranceRef.current = utterance; // Keep a strong reference to prevent GC in Chrome
-
-      utterance.rate = 1.05;
-      utterance.pitch = 1.0;
-      utterance.lang = selectedLanguage;
-      
-      // Select an elegant male/neutral voice in the chosen language if available
-      const voices = window.speechSynthesis.getVoices();
-      
-      // Filter voices that match the exact language (e.g., en-IN or en_IN)
-      const exactLangVoices = voices.filter(v => {
-        const lowerLang = v.lang.toLowerCase().replace('_', '-');
-        return lowerLang === selectedLanguage.toLowerCase() || lowerLang.startsWith(selectedLanguage.toLowerCase());
-      });
-      
-      // Find a male voice in our exact language (e.g. Ravi, Karan, male)
-      let chosenVoice = exactLangVoices.find(v => {
-        const lowerName = v.name.toLowerCase();
-        const hasMaleIndicator = lowerName.includes('male') || lowerName.includes('ravi') || lowerName.includes('karan') || lowerName.includes('david') || lowerName.includes('mark') || lowerName.includes('george');
-        const hasFemaleIndicator = lowerName.includes('female') || lowerName.includes('heera') || lowerName.includes('veena') || lowerName.includes('zira') || lowerName.includes('priya') || lowerName.includes('hazel');
-        return hasMaleIndicator && !hasFemaleIndicator;
-      });
-      
-      // Fallback: any voice in our exact language that does not explicitly contain female identifiers
-      if (!chosenVoice) {
-        chosenVoice = exactLangVoices.find(v => {
-          const lowerName = v.name.toLowerCase();
-          return !lowerName.includes('female') && !lowerName.includes('heera') && !lowerName.includes('veena') && !lowerName.includes('zira') && !lowerName.includes('priya') && !lowerName.includes('hazel');
-        });
-      }
-      
-      // Fallback to any voice matching exact language
-      if (!chosenVoice) {
-        chosenVoice = exactLangVoices[0];
-      }
-      
-      // Fallback to any English male voice
-      if (!chosenVoice) {
-        chosenVoice = voices.find(v => {
-          const lowerName = v.name.toLowerCase();
-          const lowerLang = v.lang.toLowerCase().replace('_', '-');
-          const isEnglish = lowerLang.startsWith('en');
-          const hasMaleIndicator = lowerName.includes('male') || lowerName.includes('ravi') || lowerName.includes('karan') || lowerName.includes('david') || lowerName.includes('mark') || lowerName.includes('george');
-          const hasFemaleIndicator = lowerName.includes('female') || lowerName.includes('heera') || lowerName.includes('veena') || lowerName.includes('zira') || lowerName.includes('priya') || lowerName.includes('hazel');
-          return isEnglish && hasMaleIndicator && !hasFemaleIndicator;
-        });
-      }
-      
-      // Fallback to any English voice
-      if (!chosenVoice) {
-        chosenVoice = voices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith('en'));
-      }
-      
-      // Fallback to any premium/synthesis voice
-      if (!chosenVoice) {
-        chosenVoice = voices.find(v => v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Synthesis"));
-      }
-
-      if (chosenVoice) {
-        utterance.voice = chosenVoice;
-      }
-
-      utterance.onstart = () => {
-        setIsSpeaking(true);
-        isSpeakingRef.current = true;
-        // Pause listening while speaking to prevent self-triggering
+      // We wrap the speak operation in a small timeout to give the browser time to clear its speech queue.
+      // This is a crucial workaround for a Chrome bug where cancel() and speak() run too close together.
+      setTimeout(() => {
         try {
-          recognitionRef.current?.stop();
-        } catch (err) {
-          console.warn("Failed to stop listening on speech start:", err);
+          const utterance = new SpeechSynthesisUtterance(text);
+          activeUtteranceRef.current = utterance; // Keep a strong reference to prevent GC in Chrome
+
+          utterance.rate = 1.05;
+          utterance.pitch = 1.0;
+          utterance.lang = selectedLanguage;
+          
+          // Select an elegant male/neutral voice in the chosen language if available
+          const voices = window.speechSynthesis.getVoices();
+          
+          // Filter voices that match the exact language (e.g., en-IN or en_IN)
+          const exactLangVoices = voices.filter(v => {
+            const lowerLang = v.lang.toLowerCase().replace('_', '-');
+            return lowerLang === selectedLanguage.toLowerCase() || lowerLang.startsWith(selectedLanguage.toLowerCase());
+          });
+          
+          // Find a male voice in our exact language (e.g. Ravi, Karan, male)
+          let chosenVoice = exactLangVoices.find(v => {
+            const lowerName = v.name.toLowerCase();
+            const hasMaleIndicator = lowerName.includes('male') || lowerName.includes('ravi') || lowerName.includes('karan') || lowerName.includes('david') || lowerName.includes('mark') || lowerName.includes('george');
+            const hasFemaleIndicator = lowerName.includes('female') || lowerName.includes('heera') || lowerName.includes('veena') || lowerName.includes('zira') || lowerName.includes('priya') || lowerName.includes('hazel');
+            return hasMaleIndicator && !hasFemaleIndicator;
+          });
+          
+          // Fallback: any voice in our exact language that does not explicitly contain female identifiers
+          if (!chosenVoice) {
+            chosenVoice = exactLangVoices.find(v => {
+              const lowerName = v.name.toLowerCase();
+              return !lowerName.includes('female') && !lowerName.includes('heera') && !lowerName.includes('veena') && !lowerName.includes('zira') && !lowerName.includes('priya') && !lowerName.includes('hazel');
+            });
+          }
+          
+          // Fallback to any voice matching exact language
+          if (!chosenVoice) {
+            chosenVoice = exactLangVoices[0];
+          }
+          
+          // Fallback to any English male voice
+          if (!chosenVoice) {
+            chosenVoice = voices.find(v => {
+              const lowerName = v.name.toLowerCase();
+              const lowerLang = v.lang.toLowerCase().replace('_', '-');
+              const isEnglish = lowerLang.startsWith('en');
+              const hasMaleIndicator = lowerName.includes('male') || lowerName.includes('ravi') || lowerName.includes('karan') || lowerName.includes('david') || lowerName.includes('mark') || lowerName.includes('george');
+              const hasFemaleIndicator = lowerName.includes('female') || lowerName.includes('heera') || lowerName.includes('veena') || lowerName.includes('zira') || lowerName.includes('priya') || lowerName.includes('hazel');
+              return isEnglish && hasMaleIndicator && !hasFemaleIndicator;
+            });
+          }
+          
+          // Fallback to any English voice
+          if (!chosenVoice) {
+            chosenVoice = voices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith('en'));
+          }
+          
+          // Fallback to any premium/synthesis voice
+          if (!chosenVoice) {
+            chosenVoice = voices.find(v => v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Synthesis"));
+          }
+
+          if (chosenVoice) {
+            utterance.voice = chosenVoice;
+            utterance.lang = chosenVoice.lang; // Ensure voice lang and utterance lang match perfectly
+          }
+
+          utterance.onstart = () => {
+            setIsSpeaking(true);
+            isSpeakingRef.current = true;
+            // Pause listening while speaking to prevent self-triggering
+            try {
+              recognitionRef.current?.stop();
+            } catch (err) {
+              console.warn("Failed to stop listening on speech start:", err);
+            }
+          };
+
+          utterance.onend = () => {
+            setIsSpeaking(false);
+            isSpeakingRef.current = false;
+            activeUtteranceRef.current = null;
+          };
+
+          utterance.onerror = (err) => {
+            console.warn("Utterance error callback triggered:", err);
+            setIsSpeaking(false);
+            isSpeakingRef.current = false;
+            activeUtteranceRef.current = null;
+          };
+          
+          window.speechSynthesis.speak(utterance);
+        } catch (innerErr) {
+          console.error("Delayed speak failed:", innerErr);
         }
-      };
-
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        isSpeakingRef.current = false;
-        activeUtteranceRef.current = null;
-      };
-
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-        isSpeakingRef.current = false;
-        activeUtteranceRef.current = null;
-      };
-      
-      window.speechSynthesis.speak(utterance);
+      }, 100);
     } catch (e) {
       console.error("Speech Synthesis error:", e);
     }

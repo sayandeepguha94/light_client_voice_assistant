@@ -193,6 +193,7 @@ export default function App() {
   const listeningTimeoutRef = useRef<any>(null);
   const isProcessingRef = useRef(false);
   const isSpeakingRef = useRef(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
     listeningDurationRef.current = listeningDuration;
@@ -222,39 +223,39 @@ export default function App() {
   // Helper: Generate synth sounds for vocal feedback
   const playBeep = (freq: number, duration: number, type: "sine" | "triangle" | "square" = "sine", volume = 0.08) => {
     try {
-      // Create a wav-based beep URL dynamically (very reliable across iframe sandbox/suspended states)
-      const beepUrl = createBeepWavUrl(freq, duration, volume);
-      const audio = new Audio(beepUrl);
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) {
+        console.warn("AudioContext not supported in this browser.");
+        return;
+      }
+
+      // Reuse pre-unlocked AudioContext if possible
+      let audioCtx = audioContextRef.current;
+      if (!audioCtx) {
+        audioCtx = new AudioCtx();
+        audioContextRef.current = audioCtx;
+      }
+
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
       
-      // Attempt play on the Audio element
-      audio.play().catch(err => {
-        console.warn("Audio element play failed, falling back to Web Audio API:", err);
-        try {
-          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-          const oscillator = audioCtx.createOscillator();
-          const gainNode = audioCtx.createGain();
-          
-          oscillator.type = type;
-          oscillator.frequency.value = freq;
-          
-          gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
-          gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-          
-          oscillator.connect(gainNode);
-          gainNode.connect(audioCtx.destination);
-          
-          if (audioCtx.state === "suspended") {
-            audioCtx.resume();
-          }
-          
-          oscillator.start();
-          oscillator.stop(audioCtx.currentTime + duration);
-        } catch (e) {
-          console.warn("Audio Context fallback beep failed:", e);
-        }
-      });
+      oscillator.type = type;
+      oscillator.frequency.value = freq;
+      
+      gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      oscillator.start(audioCtx.currentTime);
+      oscillator.stop(audioCtx.currentTime + duration);
     } catch (e) {
-      console.warn("WAV-based beep creation/playback failed:", e);
+      console.warn("Direct playBeep failed:", e);
     }
   };
 
@@ -457,9 +458,14 @@ export default function App() {
   useEffect(() => {
     const unlockAudio = () => {
       try {
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        if (audioCtx.state === "suspended") {
-          audioCtx.resume();
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          if (ctx.state === "suspended") {
+            ctx.resume();
+          }
+          audioContextRef.current = ctx;
+          console.log("Global AudioContext initialized & unlocked on user gesture:", ctx);
         }
         // Play a very quick silent audio to unlock standard HTML5 Audio elements
         const silentAudio = new Audio(createSilentWavUrl(0.1, 8000));
@@ -500,7 +506,7 @@ export default function App() {
     }
 
     // Check if we are currently listening (or if our window is still open)
-    const isCurrentlyListening = listening || (listeningActiveUntilRef.current > Date.now());
+    const isCurrentlyListening = listening;
 
     if (isCurrentlyListening) {
       try {

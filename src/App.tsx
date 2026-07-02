@@ -136,7 +136,7 @@ export default function App() {
 
   const toggleRoom = (roomName: string) => {
     setExpandedRooms(prev => {
-      const isCurrentlyExpanded = prev[roomName] !== false;
+      const isCurrentlyExpanded = !!prev[roomName];
       return {
         ...prev,
         [roomName]: !isCurrentlyExpanded
@@ -1000,7 +1000,7 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
             
             {/* Rooms and Devices Grid Layout */}
-            <div className="lg:col-span-8 bg-[#11131f]/30 border border-white/5 p-6 rounded-2xl flex flex-col justify-between">
+            <div className={`${isLocalhost ? "lg:col-span-8" : "lg:col-span-12"} bg-[#11131f]/30 border border-white/5 p-6 rounded-2xl flex flex-col justify-between`}>
               <div>
                 <div className="flex flex-wrap gap-3 justify-between items-center mb-6 pb-3 border-b border-white/5">
                   <h2 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-2">
@@ -1033,7 +1033,7 @@ export default function App() {
                       return acc;
                     }, {} as Record<string, Device[]>)
                   ) as Array<[string, Device[]]>).map(([roomName, roomDevs]) => {
-                    const isExpanded = expandedRooms[roomName] !== false;
+                    const isExpanded = !!expandedRooms[roomName];
                     const activeCount = roomDevs.filter(d => d.on).length;
                     
                     return (
@@ -1054,22 +1054,24 @@ export default function App() {
                               {activeCount}/{roomDevs.length} Active
                             </span>
                           </div>
-                          <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => executeDeviceAction(roomName, null, "room_on")}
-                              className="text-[9px] text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-wider bg-emerald-500/10 px-2.5 py-1 rounded transition-colors cursor-pointer"
-                              title={`Turn on all in ${roomName}`}
-                            >
-                              All On
-                            </button>
-                            <button
-                              onClick={() => executeDeviceAction(roomName, null, "room_off")}
-                              className="text-[9px] text-rose-400 hover:text-rose-300 font-bold uppercase tracking-wider bg-rose-500/10 px-2.5 py-1 rounded transition-colors cursor-pointer"
-                              title={`Turn off all in ${roomName}`}
-                            >
-                              All Off
-                            </button>
-                          </div>
+                          {isLocalhost && (
+                            <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => executeDeviceAction(roomName, null, "room_on")}
+                                className="text-[9px] text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-wider bg-emerald-500/10 px-2.5 py-1 rounded transition-colors cursor-pointer"
+                                title={`Turn on all in ${roomName}`}
+                              >
+                                All On
+                              </button>
+                              <button
+                                onClick={() => executeDeviceAction(roomName, null, "room_off")}
+                                className="text-[9px] text-rose-400 hover:text-rose-300 font-bold uppercase tracking-wider bg-rose-500/10 px-2.5 py-1 rounded transition-colors cursor-pointer"
+                                title={`Turn off all in ${roomName}`}
+                              >
+                                All Off
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         {isExpanded && (
@@ -1161,62 +1163,64 @@ export default function App() {
             </div>
 
             {/* Diagnostics Stats and Signal Panel */}
-            <div className="lg:col-span-4 flex flex-col gap-6">
-              
-              {/* Signal strength indicators */}
-              <div className="bg-[#11131f]/40 border border-white/5 rounded-2xl p-5">
-                <div className="flex justify-between items-center mb-3">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Subsystem Signal Level</p>
-                  <span className="text-[10px] font-mono text-cyan-400">92% Signal</span>
-                </div>
-                <div className="flex items-end gap-1.5 h-16">
-                  <div className="flex-1 bg-cyan-400/40 h-[60%] rounded-sm"></div>
-                  <div className="flex-1 bg-cyan-400/40 h-[85%] rounded-sm"></div>
-                  <div className="flex-1 bg-cyan-400 h-[100%] rounded-sm shadow-[0_0_15px_rgba(34,211,238,0.5)]"></div>
-                  <div className="flex-1 bg-cyan-400/40 h-[70%] rounded-sm"></div>
-                  <div className="flex-1 bg-cyan-400/40 h-[40%] rounded-sm"></div>
-                </div>
-              </div>
-
-              {/* Subsystem State Card */}
-              <div className="bg-[#11131f]/40 border border-white/5 p-5 rounded-2xl flex-1 flex flex-col justify-between">
-                <div>
-                  <h3 className="text-xs font-bold tracking-wider text-slate-400 uppercase mb-4 pb-2 border-b border-white/5 flex items-center gap-2">
-                    <Airplay className="w-4 h-4 text-purple-400" />
-                    State Diagnostics
-                  </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                    The devices on this page represent physical smart switch nodes configured in your rooms. These updates are synchronized locally to your home hub via:
-                  </p>
-                  
-                  <div className="space-y-2.5 font-mono text-xs">
-                    <div className="flex justify-between p-2 bg-white/5 rounded-lg border border-white/5">
-                      <span className="text-slate-500">Local Ping:</span>
-                      <span className="text-cyan-300 font-bold">{latency}</span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-white/5 rounded-lg border border-white/5">
-                      <span className="text-slate-500">Controller host:</span>
-                      <span className="text-slate-300">{config.serverIp}</span>
-                    </div>
-                    <div className="flex justify-between p-2 bg-white/5 rounded-lg border border-white/5">
-                      <span className="text-slate-500">Port target:</span>
-                      <span className="text-slate-300">{config.serverPort}</span>
-                    </div>
+            {isLocalhost && (
+              <div className="lg:col-span-4 flex flex-col gap-6">
+                
+                {/* Signal strength indicators */}
+                <div className="bg-[#11131f]/40 border border-white/5 rounded-2xl p-5">
+                  <div className="flex justify-between items-center mb-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Subsystem Signal Level</p>
+                    <span className="text-[10px] font-mono text-cyan-400">92% Signal</span>
+                  </div>
+                  <div className="flex items-end gap-1.5 h-16">
+                    <div className="flex-1 bg-cyan-400/40 h-[60%] rounded-sm"></div>
+                    <div className="flex-1 bg-cyan-400/40 h-[85%] rounded-sm"></div>
+                    <div className="flex-1 bg-cyan-400 h-[100%] rounded-sm shadow-[0_0_15px_rgba(34,211,238,0.5)]"></div>
+                    <div className="flex-1 bg-cyan-400/40 h-[70%] rounded-sm"></div>
+                    <div className="flex-1 bg-cyan-400/40 h-[40%] rounded-sm"></div>
                   </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-white/5">
-                  <button
-                    onClick={() => setDevices(INITIAL_DEVICES)}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-[10px] rounded-lg uppercase tracking-wider transition-colors text-slate-300 font-semibold cursor-pointer"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Reset Demo Devices</span>
-                  </button>
-                </div>
-              </div>
+                {/* Subsystem State Card */}
+                <div className="bg-[#11131f]/40 border border-white/5 p-5 rounded-2xl flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold tracking-wider text-slate-400 uppercase mb-4 pb-2 border-b border-white/5 flex items-center gap-2">
+                      <Airplay className="w-4 h-4 text-purple-400" />
+                      State Diagnostics
+                    </h3>
+                    <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                      The devices on this page represent physical smart switch nodes configured in your rooms. These updates are synchronized locally to your home hub via:
+                    </p>
+                    
+                    <div className="space-y-2.5 font-mono text-xs">
+                      <div className="flex justify-between p-2 bg-white/5 rounded-lg border border-white/5">
+                        <span className="text-slate-500">Local Ping:</span>
+                        <span className="text-cyan-300 font-bold">{latency}</span>
+                      </div>
+                      <div className="flex justify-between p-2 bg-white/5 rounded-lg border border-white/5">
+                        <span className="text-slate-500">Controller host:</span>
+                        <span className="text-slate-300">{config.serverIp}</span>
+                      </div>
+                      <div className="flex justify-between p-2 bg-white/5 rounded-lg border border-white/5">
+                        <span className="text-slate-500">Port target:</span>
+                        <span className="text-slate-300">{config.serverPort}</span>
+                      </div>
+                    </div>
+                  </div>
 
-            </div>
+                  <div className="mt-6 pt-4 border-t border-white/5">
+                    <button
+                      onClick={() => setDevices(INITIAL_DEVICES)}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-[10px] rounded-lg uppercase tracking-wider transition-colors text-slate-300 font-semibold cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Reset Demo Devices</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            )}
 
           </div>
         )}

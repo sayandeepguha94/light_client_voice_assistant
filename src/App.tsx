@@ -154,6 +154,7 @@ export default function App() {
   // Refs to avoid stale state in async speech events
   const isProcessingRef = useRef(false);
   const isSpeakingRef = useRef(false);
+  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   // Helper: Log message to dashboard terminal console
   const addLog = (type: SystemLog["type"], message: string, details?: string) => {
@@ -196,7 +197,15 @@ export default function App() {
     if (!speechSynthesisEnabled || !('speechSynthesis' in window)) return;
     try {
       window.speechSynthesis.cancel(); // Stop active voices
+      
+      // Resume if browser's SpeechSynthesis engine got stuck in a paused state
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+
       const utterance = new SpeechSynthesisUtterance(text);
+      activeUtteranceRef.current = utterance; // Keep a strong reference to prevent GC in Chrome
+
       utterance.rate = 1.05;
       utterance.pitch = 1.0;
       utterance.lang = selectedLanguage;
@@ -258,11 +267,13 @@ export default function App() {
       utterance.onend = () => {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
+        activeUtteranceRef.current = null;
       };
 
       utterance.onerror = () => {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
+        activeUtteranceRef.current = null;
       };
       
       window.speechSynthesis.speak(utterance);
@@ -284,6 +295,16 @@ export default function App() {
       const ms = (Math.random() * 3 + 2).toFixed(1);
       setLatency(`${ms}ms`);
     }, 5000);
+
+    // Pre-warm speech synthesis voices (asynchronously loaded by the browser)
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          window.speechSynthesis.getVoices();
+        };
+      }
+    }
 
     addLog("info", "Voice IoT Dashboard loaded.", "Awaiting connection parameters or local microphone triggers.");
 
@@ -678,6 +699,7 @@ export default function App() {
         speakText("Turning on the ambient light.");
       } else {
         setAiResponse(fallbackText);
+        speakText(fallbackText);
       }
 
       // Add fallback assistant response to chat history

@@ -210,7 +210,7 @@ export default function App() {
       utterance.pitch = 1.0;
       utterance.lang = selectedLanguage;
       
-      // Select an elegant female/neutral voice in the chosen language if available
+      // Select an elegant male/neutral voice in the chosen language if available
       const voices = window.speechSynthesis.getVoices();
       
       // Filter voices that match the exact language (e.g., en-IN or en_IN)
@@ -219,23 +219,36 @@ export default function App() {
         return lowerLang === selectedLanguage.toLowerCase() || lowerLang.startsWith(selectedLanguage.toLowerCase());
       });
       
-      // Find a female voice in our exact language (e.g. Heera, Veena, Priya, female, Google)
+      // Find a male voice in our exact language (e.g. Ravi, Karan, male)
       let chosenVoice = exactLangVoices.find(v => {
         const lowerName = v.name.toLowerCase();
-        return lowerName.includes('female') || lowerName.includes('heera') || lowerName.includes('veena') || lowerName.includes('zira') || lowerName.includes('priya') || lowerName.includes('google');
+        const hasMaleIndicator = lowerName.includes('male') || lowerName.includes('ravi') || lowerName.includes('karan') || lowerName.includes('david') || lowerName.includes('mark') || lowerName.includes('george');
+        const hasFemaleIndicator = lowerName.includes('female') || lowerName.includes('heera') || lowerName.includes('veena') || lowerName.includes('zira') || lowerName.includes('priya') || lowerName.includes('hazel');
+        return hasMaleIndicator && !hasFemaleIndicator;
       });
+      
+      // Fallback: any voice in our exact language that does not explicitly contain female identifiers
+      if (!chosenVoice) {
+        chosenVoice = exactLangVoices.find(v => {
+          const lowerName = v.name.toLowerCase();
+          return !lowerName.includes('female') && !lowerName.includes('heera') && !lowerName.includes('veena') && !lowerName.includes('zira') && !lowerName.includes('priya') && !lowerName.includes('hazel');
+        });
+      }
       
       // Fallback to any voice matching exact language
       if (!chosenVoice) {
         chosenVoice = exactLangVoices[0];
       }
       
-      // Fallback to any English female voice
+      // Fallback to any English male voice
       if (!chosenVoice) {
         chosenVoice = voices.find(v => {
           const lowerName = v.name.toLowerCase();
           const lowerLang = v.lang.toLowerCase().replace('_', '-');
-          return lowerLang.startsWith('en') && (lowerName.includes('female') || lowerName.includes('heera') || lowerName.includes('veena') || lowerName.includes('zira') || lowerName.includes('priya') || lowerName.includes('google'));
+          const isEnglish = lowerLang.startsWith('en');
+          const hasMaleIndicator = lowerName.includes('male') || lowerName.includes('ravi') || lowerName.includes('karan') || lowerName.includes('david') || lowerName.includes('mark') || lowerName.includes('george');
+          const hasFemaleIndicator = lowerName.includes('female') || lowerName.includes('heera') || lowerName.includes('veena') || lowerName.includes('zira') || lowerName.includes('priya') || lowerName.includes('hazel');
+          return isEnglish && hasMaleIndicator && !hasFemaleIndicator;
         });
       }
       

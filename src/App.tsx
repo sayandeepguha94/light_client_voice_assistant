@@ -134,18 +134,16 @@ export default function App() {
     });
   };
 
-  // Wake Word & Speech Flow states
-  const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
+  // Speech Flow states
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   // Speech Recognition reference
   const recognitionRef = useRef<any>(null);
+  const listeningTimeoutRef = useRef<any>(null);
 
   // Refs to avoid stale state in async speech events
-  const wakeWordEnabledRef = useRef(false);
   const isProcessingRef = useRef(false);
   const isSpeakingRef = useRef(false);
-  const hasBeenWokenUpRef = useRef(false);
 
   // Helper: Log message to dashboard terminal console
   const addLog = (type: SystemLog["type"], message: string, details?: string) => {
@@ -217,34 +215,11 @@ export default function App() {
       utterance.onend = () => {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
-        // Resume background wake word listening if enabled
-        if (wakeWordEnabledRef.current && !isProcessingRef.current) {
-          setTimeout(() => {
-            if (wakeWordEnabledRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
-              try {
-                recognitionRef.current?.start();
-              } catch (e) {
-                console.warn("Failed to restart wake word listening after speaking end:", e);
-              }
-            }
-          }, 300);
-        }
       };
 
       utterance.onerror = () => {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
-        if (wakeWordEnabledRef.current && !isProcessingRef.current) {
-          setTimeout(() => {
-            if (wakeWordEnabledRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
-              try {
-                recognitionRef.current?.start();
-              } catch (e) {
-                console.warn("Failed to restart wake word listening after speaking error:", e);
-              }
-            }
-          }, 300);
-        }
       };
       
       window.speechSynthesis.speak(utterance);
@@ -281,50 +256,29 @@ export default function App() {
       rec.onstart = () => {
         setListening(true);
         setTranscript("");
-        // Play beep only for active triggers, not background wake loop restarts
-        if (!wakeWordEnabledRef.current || hasBeenWokenUpRef.current) {
-          playBeep(880, 0.12, "sine"); // high beep
-        }
+        playBeep(880, 0.12, "sine"); // high beep
         addLog("info", "Microphone listening stream initialized.");
+
+        // Automatically stop listening after 6 seconds
+        if (listeningTimeoutRef.current) {
+          clearTimeout(listeningTimeoutRef.current);
+        }
+        listeningTimeoutRef.current = setTimeout(() => {
+          addLog("info", "Auto-stopped listening after 6 seconds limit reached.");
+          try {
+            recognitionRef.current?.stop();
+          } catch (err) {
+            console.warn("Failed to stop listening after 6 seconds:", err);
+          }
+        }, 6000);
       };
 
       rec.onresult = (event: any) => {
         const resultText = event.results[0][0].transcript;
         const cleanText = resultText.trim();
-        const lowerText = cleanText.toLowerCase();
-
-        if (wakeWordEnabledRef.current) {
-          if (lowerText.includes("jerry")) {
-            const jerryIndex = lowerText.indexOf("jerry");
-            const commandPart = cleanText.slice(jerryIndex + 5).trim();
-
-            if (commandPart.length > 1) {
-              setTranscript(cleanText);
-              addLog("voice", `Wake word + Command detected: "${cleanText}"`);
-              handleProcessCommand(commandPart);
-            } else {
-              setTranscript("Jerry?");
-              addLog("voice", `Wake word detected. Ready for your command!`);
-              playBeep(660, 0.1, "sine");
-              setTimeout(() => playBeep(880, 0.1, "sine"), 100);
-              setAiResponse("Yes? I am listening...");
-              speakText("Yes?");
-              hasBeenWokenUpRef.current = true;
-            }
-          } else if (hasBeenWokenUpRef.current) {
-            hasBeenWokenUpRef.current = false;
-            setTranscript(cleanText);
-            addLog("voice", `Command received after wake word: "${cleanText}"`);
-            handleProcessCommand(cleanText);
-          } else {
-            console.log("Background chatter filtered:", cleanText);
-            addLog("info", `Ambient audio filtered (no wake-word 'Jerry' detected): "${cleanText}"`);
-          }
-        } else {
-          setTranscript(cleanText);
-          addLog("voice", `Voice command detected: "${cleanText}"`);
-          handleProcessCommand(cleanText);
-        }
+        setTranscript(cleanText);
+        addLog("voice", `Voice command detected: "${cleanText}"`);
+        handleProcessCommand(cleanText);
       };
 
       rec.onerror = (event: any) => {
@@ -334,21 +288,17 @@ export default function App() {
           playBeep(220, 0.25, "triangle"); // low error beep
         }
         setListening(false);
+        if (listeningTimeoutRef.current) {
+          clearTimeout(listeningTimeoutRef.current);
+          listeningTimeoutRef.current = null;
+        }
       };
 
       rec.onend = () => {
         setListening(false);
-        // If wake word is enabled and we are not speaking or processing, restart background listener!
-        if (wakeWordEnabledRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
-          setTimeout(() => {
-            if (wakeWordEnabledRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
-              try {
-                recognitionRef.current?.start();
-              } catch (e) {
-                console.warn("Failed to auto-restart speech recognition:", e);
-              }
-            }
-          }, 300);
+        if (listeningTimeoutRef.current) {
+          clearTimeout(listeningTimeoutRef.current);
+          listeningTimeoutRef.current = null;
         }
       };
 
@@ -371,42 +321,9 @@ export default function App() {
     }
   }, [selectedLanguage]);
 
-  // Sync states to refs to avoid stale closures in voice recognition callbacks
-  useEffect(() => {
-    wakeWordEnabledRef.current = wakeWordEnabled;
-    if (wakeWordEnabled && !listening && speechSupported) {
-      try {
-        window.speechSynthesis.cancel();
-        recognitionRef.current?.start();
-        addLog("info", "Background listening for Wake Word 'Jerry' activated.");
-      } catch (err) {
-        console.warn("Failed starting speech recognition for wake word:", err);
-      }
-    } else if (!wakeWordEnabled && listening) {
-      // If disabled and we were listening in wake word mode, stop it
-      try {
-        recognitionRef.current?.stop();
-        addLog("info", "Background listening for Wake Word deactivated.");
-      } catch (err) {
-        console.warn("Failed stopping speech recognition:", err);
-      }
-    }
-  }, [wakeWordEnabled, listening, speechSupported]);
-
   useEffect(() => {
     isProcessingRef.current = isProcessing;
-    if (!isProcessing && wakeWordEnabled && !listening && !isSpeakingRef.current && speechSupported) {
-      setTimeout(() => {
-        if (!isProcessingRef.current && wakeWordEnabledRef.current && !isSpeakingRef.current) {
-          try {
-            recognitionRef.current?.start();
-          } catch (e) {
-            console.warn("Failed to resume wake word after processing:", e);
-          }
-        }
-      }, 500);
-    }
-  }, [isProcessing, wakeWordEnabled, listening, speechSupported]);
+  }, [isProcessing]);
 
   // Listen for spacebar to trigger voice commands
   useEffect(() => {
@@ -454,10 +371,6 @@ export default function App() {
     } else {
       try {
         window.speechSynthesis.cancel(); // Stop talking first
-        // If wake word is enabled, mark as woken up so it processes this direct manual trigger as a command
-        if (wakeWordEnabled) {
-          hasBeenWokenUpRef.current = true;
-        }
         recognitionRef.current?.start();
         setListening(true); // Immediate visual feedback for touchscreens
       } catch (err) {
@@ -1313,19 +1226,6 @@ export default function App() {
                 </h3>
                 <div className="flex gap-2 relative z-10">
                   <button 
-                    onClick={() => setWakeWordEnabled(!wakeWordEnabled)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] rounded-md uppercase tracking-wider transition-colors font-semibold cursor-pointer border ${
-                      wakeWordEnabled 
-                        ? "bg-purple-500/20 border-purple-500/40 text-purple-300 hover:bg-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.15)]" 
-                        : "bg-slate-800 hover:bg-slate-700 text-slate-300 border-transparent"
-                    }`}
-                    title={wakeWordEnabled ? "Disable continuous background listening for wake word 'Jerry'" : "Enable continuous background listening for wake word 'Jerry'"}
-                  >
-                    <RefreshCw className={`w-3 h-3 ${wakeWordEnabled ? "text-purple-400 animate-spin" : "text-slate-500"}`} />
-                    <span>{wakeWordEnabled ? "Wake Word Active" : "Wake Word Off"}</span>
-                  </button>
-
-                  <button 
                     onClick={() => setSpeechSynthesisEnabled(!speechSynthesisEnabled)}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-[9px] rounded-md uppercase tracking-wider transition-colors text-slate-300 font-semibold cursor-pointer"
                     title={speechSynthesisEnabled ? "Mute voice assistant speech synthesis" : "Unmute voice assistant speech synthesis"}
@@ -1380,12 +1280,8 @@ export default function App() {
                 <div className="mt-5 space-y-3 w-full">
                   <p className={`text-xs font-bold tracking-[0.2em] uppercase transition-colors ${listening ? "text-purple-400" : "text-cyan-400"}`}>
                     {listening 
-                      ? (wakeWordEnabled && !hasBeenWokenUpRef.current 
-                          ? "Background Listening (Say 'Jerry')" 
-                          : "Listening for command...") 
-                      : (wakeWordEnabled 
-                          ? "Wake Word Mode Active" 
-                          : "Tap Space or click orb to talk")}
+                      ? "Listening for command..." 
+                      : "Tap Space or click orb to talk"}
                   </p>
                   
                   {transcript && (
@@ -1413,7 +1309,7 @@ export default function App() {
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
                     </span>
-                    {wakeWordEnabled && !hasBeenWokenUpRef.current ? "Continuous Wake Word Listening ('Jerry')..." : "Listening for vocal command..."}
+                    Listening for vocal command...
                   </span>
                 </div>
               )}

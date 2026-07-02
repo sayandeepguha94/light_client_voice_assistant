@@ -120,7 +120,7 @@ export default function App() {
   const [manualInput, setManualInput] = useState("");
   const [latency, setLatency] = useState("4.2ms");
   const [currentTime, setCurrentTime] = useState("");
-  const [selectedLanguage, setSelectedLanguage] = useState("en-US");
+  const [selectedLanguage, setSelectedLanguage] = useState("en-IN");
 
   // Chat History & Expandable Rooms States
   const [expandedRooms, setExpandedRooms] = useState<Record<string, boolean>>({});
@@ -203,12 +203,45 @@ export default function App() {
       
       // Select an elegant female/neutral voice in the chosen language if available
       const voices = window.speechSynthesis.getVoices();
-      const langPrefix = selectedLanguage.split('-')[0];
-      const premiumVoice = voices.find(v => v.lang.startsWith(langPrefix) && (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Synthesis")))
-        || voices.find(v => v.lang.startsWith(langPrefix));
-        
-      if (premiumVoice) {
-        utterance.voice = premiumVoice;
+      
+      // Filter voices that match the exact language (e.g., en-IN or en_IN)
+      const exactLangVoices = voices.filter(v => {
+        const lowerLang = v.lang.toLowerCase().replace('_', '-');
+        return lowerLang === selectedLanguage.toLowerCase() || lowerLang.startsWith(selectedLanguage.toLowerCase());
+      });
+      
+      // Find a female voice in our exact language (e.g. Heera, Veena, Priya, female, Google)
+      let chosenVoice = exactLangVoices.find(v => {
+        const lowerName = v.name.toLowerCase();
+        return lowerName.includes('female') || lowerName.includes('heera') || lowerName.includes('veena') || lowerName.includes('zira') || lowerName.includes('priya') || lowerName.includes('google');
+      });
+      
+      // Fallback to any voice matching exact language
+      if (!chosenVoice) {
+        chosenVoice = exactLangVoices[0];
+      }
+      
+      // Fallback to any English female voice
+      if (!chosenVoice) {
+        chosenVoice = voices.find(v => {
+          const lowerName = v.name.toLowerCase();
+          const lowerLang = v.lang.toLowerCase().replace('_', '-');
+          return lowerLang.startsWith('en') && (lowerName.includes('female') || lowerName.includes('heera') || lowerName.includes('veena') || lowerName.includes('zira') || lowerName.includes('priya') || lowerName.includes('google'));
+        });
+      }
+      
+      // Fallback to any English voice
+      if (!chosenVoice) {
+        chosenVoice = voices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith('en'));
+      }
+      
+      // Fallback to any premium/synthesis voice
+      if (!chosenVoice) {
+        chosenVoice = voices.find(v => v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Synthesis"));
+      }
+
+      if (chosenVoice) {
+        utterance.voice = chosenVoice;
       }
 
       utterance.onstart = () => {
@@ -887,24 +920,6 @@ export default function App() {
               <span className="text-[9px] font-mono font-normal tracking-normal text-slate-400 lowercase px-2 py-0.5 rounded-full bg-white/5">
                 v1.2.0
               </span>
-              <div className="flex items-center gap-1 normal-case tracking-normal ml-1">
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="bg-[#1a1d2f] border border-white/10 text-xs text-slate-200 px-2 py-0.5 rounded-md focus:outline-none focus:border-cyan-400/50 cursor-pointer font-sans"
-                  title="Select AI Voice & Transcription Language (Piper/Whisper)"
-                >
-                  <option value="en-US">en-US</option>
-                  <option value="en-IN">en-IN</option>
-                  <option value="es-ES">es-ES</option>
-                  <option value="fr-FR">fr-FR</option>
-                  <option value="de-DE">de-DE</option>
-                  <option value="it-IT">it-IT</option>
-                  <option value="hi-IN">hi-IN</option>
-                  <option value="zh-CN">zh-CN</option>
-                  <option value="ja-JP">ja-JP</option>
-                </select>
-              </div>
             </h1>
             <p className="text-[10px] text-slate-400 font-mono">LOCAL_LINUX_CONTAINER // SECURE_BRIDGE</p>
           </div>

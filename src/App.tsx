@@ -256,7 +256,7 @@ export default function App() {
       rec.onstart = () => {
         setListening(true);
         setTranscript("");
-        playBeep(880, 0.25, "sine", 0.7); // extra loud high beep for blue -> purple transition
+        playBeep(880, 0.25, "sine", 0.9); // extra loud high beep for blue -> purple transition
         addLog("info", "Microphone listening stream initialized.");
 
         // Automatically stop listening after 6 seconds

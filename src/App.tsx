@@ -120,7 +120,7 @@ export default function App() {
   const [manualInput, setManualInput] = useState("");
   const [latency, setLatency] = useState("4.2ms");
   const [currentTime, setCurrentTime] = useState("");
-  const [selectedLanguage, setSelectedLanguage] = useState("en-US");
+  const [selectedLanguage, setSelectedLanguage] = useState("en-IN");
 
   // Chat History & Expandable Rooms States
   const [expandedRooms, setExpandedRooms] = useState<Record<string, boolean>>({});

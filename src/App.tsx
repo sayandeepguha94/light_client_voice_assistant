@@ -159,7 +159,7 @@ export default function App() {
   };
 
   // Helper: Generate synth sounds for vocal feedback
-  const playBeep = (freq: number, duration: number, type: "sine" | "triangle" | "square" = "sine") => {
+  const playBeep = (freq: number, duration: number, type: "sine" | "triangle" | "square" = "sine", volume: number = 0.08) => {
     try {
       const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const oscillator = audioCtx.createOscillator();
@@ -168,7 +168,7 @@ export default function App() {
       oscillator.type = type;
       oscillator.frequency.value = freq;
       
-      gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
       
       oscillator.connect(gainNode);
@@ -256,7 +256,7 @@ export default function App() {
       rec.onstart = () => {
         setListening(true);
         setTranscript("");
-        playBeep(880, 0.12, "sine"); // high beep
+        playBeep(880, 0.2, "sine", 0.3); // loud high beep for blue -> purple transition
         addLog("info", "Microphone listening stream initialized.");
 
         // Automatically stop listening after 6 seconds

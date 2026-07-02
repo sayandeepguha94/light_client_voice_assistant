@@ -887,24 +887,6 @@ export default function App() {
               <span className="text-[9px] font-mono font-normal tracking-normal text-slate-400 lowercase px-2 py-0.5 rounded-full bg-white/5">
                 v1.2.0
               </span>
-              <div className="flex items-center gap-1 normal-case tracking-normal ml-1">
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="bg-[#1a1d2f] border border-white/10 text-xs text-slate-200 px-2 py-0.5 rounded-md focus:outline-none focus:border-cyan-400/50 cursor-pointer font-sans"
-                  title="Select AI Voice & Transcription Language (Piper/Whisper)"
-                >
-                  <option value="en-US">en-US</option>
-                  <option value="en-IN">en-IN</option>
-                  <option value="es-ES">es-ES</option>
-                  <option value="fr-FR">fr-FR</option>
-                  <option value="de-DE">de-DE</option>
-                  <option value="it-IT">it-IT</option>
-                  <option value="hi-IN">hi-IN</option>
-                  <option value="zh-CN">zh-CN</option>
-                  <option value="ja-JP">ja-JP</option>
-                </select>
-              </div>
             </h1>
             <p className="text-[10px] text-slate-400 font-mono">LOCAL_LINUX_CONTAINER // SECURE_BRIDGE</p>
           </div>

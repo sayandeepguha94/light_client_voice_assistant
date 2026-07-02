@@ -86,8 +86,18 @@ const createSilentWavUrl = (durationSeconds = 2, sampleRate = 8000): string => {
 };
 
 export default function App() {
+  // Check if accessed by localhost
+  const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+
   // Navigation: "devices" | "chat" | "console" | "gateway" | "guide"
   const [activeTab, setActiveTab] = useState<"devices" | "chat" | "console" | "gateway" | "guide">("devices");
+
+  // Force activeTab to devices if not on localhost
+  useEffect(() => {
+    if (!isLocalhost) {
+      setActiveTab("devices");
+    }
+  }, [isLocalhost]);
 
   // Core App States
   const [devices, setDevices] = useState<Device[]>(INITIAL_DEVICES);
@@ -921,65 +931,67 @@ export default function App() {
       </header>
 
       {/* Navigation Tab Bar */}
-      <nav className="w-full max-w-7xl mx-auto mb-6 px-1">
-        <div className="flex flex-wrap bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full md:w-max gap-1">
-          <button
-            onClick={() => setActiveTab("devices")}
-            className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-              activeTab === "devices"
-                ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 shadow-[0_0_15px_rgba(34,211,238,0.12)]"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <LayoutGrid className="w-4 h-4" />
-            Ecosystem Devices
-          </button>
-          <button
-            onClick={() => setActiveTab("chat")}
-            className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-              activeTab === "chat"
-                ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_15px_rgba(168,85,247,0.12)]"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Mic className="w-4 h-4" />
-            Voice & Chat Assistant
-          </button>
-          <button
-            onClick={() => setActiveTab("console")}
-            className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-              activeTab === "console"
-                ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_15px_rgba(99,102,241,0.12)]"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Terminal className="w-4 h-4" />
-            System Event Console
-          </button>
-          <button
-            onClick={() => setActiveTab("gateway")}
-            className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-              activeTab === "gateway"
-                ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <Settings className="w-4 h-4" />
-            Gateway Configuration
-          </button>
-          <button
-            onClick={() => setActiveTab("guide")}
-            className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-              activeTab === "guide"
-                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-[0_0_15px_rgba(16,185,129,0.12)]"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <HelpCircle className="w-4 h-4" />
-            Setup Guide & Scripts
-          </button>
-        </div>
-      </nav>
+      {isLocalhost && (
+        <nav className="w-full max-w-7xl mx-auto mb-6 px-1">
+          <div className="flex flex-wrap bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full md:w-max gap-1">
+            <button
+              onClick={() => setActiveTab("devices")}
+              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                activeTab === "devices"
+                  ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 shadow-[0_0_15px_rgba(34,211,238,0.12)]"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Ecosystem Devices
+            </button>
+            <button
+              onClick={() => setActiveTab("chat")}
+              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                activeTab === "chat"
+                  ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_15px_rgba(168,85,247,0.12)]"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Mic className="w-4 h-4" />
+              Voice & Chat Assistant
+            </button>
+            <button
+              onClick={() => setActiveTab("console")}
+              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                activeTab === "console"
+                  ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_15px_rgba(99,102,241,0.12)]"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Terminal className="w-4 h-4" />
+              System Event Console
+            </button>
+            <button
+              onClick={() => setActiveTab("gateway")}
+              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                activeTab === "gateway"
+                  ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              Gateway Configuration
+            </button>
+            <button
+              onClick={() => setActiveTab("guide")}
+              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                activeTab === "guide"
+                  ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-[0_0_15px_rgba(16,185,129,0.12)]"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <HelpCircle className="w-4 h-4" />
+              Setup Guide & Scripts
+            </button>
+          </div>
+        </nav>
+      )}
 
       {/* Primary Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto mb-6 px-1">

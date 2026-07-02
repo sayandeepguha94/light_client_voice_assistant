@@ -85,6 +85,52 @@ const createSilentWavUrl = (durationSeconds = 2, sampleRate = 8000): string => {
   return URL.createObjectURL(blob);
 };
 
+// Dynamically creates a standard WAV beep file at a specific frequency, duration and volume.
+const createBeepWavUrl = (frequency = 1000, durationSeconds = 0.25, volume = 0.5, sampleRate = 8000): string => {
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
+  const blockAlign = (numChannels * bitsPerSample) / 8;
+  const numSamples = Math.floor(sampleRate * durationSeconds);
+  const dataSize = numSamples * blockAlign;
+  const chunkSize = 36 + dataSize;
+
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  // RIFF identifier "RIFF"
+  view.setUint32(0, 0x52494646, false);
+  // File size minus 8
+  view.setUint32(4, chunkSize, true);
+  // WAVE identifier
+  view.setUint32(8, 0x57415645, false);
+
+  // format chunk identifier "fmt "
+  view.setUint32(12, 0x666d7420, false);
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+
+  // data chunk identifier "data"
+  view.setUint32(36, 0x64617461, false);
+  view.setUint32(40, dataSize, true);
+
+  // Sine wave sample generation
+  const amplitude = Math.floor(volume * 32767);
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    const sampleVal = Math.sin(2 * Math.PI * frequency * t);
+    view.setInt16(44 + i * 2, Math.floor(sampleVal * amplitude), true);
+  }
+
+  const blob = new Blob([buffer], { type: "audio/wav" });
+  return URL.createObjectURL(blob);
+};
+
 export default function App() {
   // Navigation: "devices" | "chat" | "console" | "gateway" | "guide"
   const [activeTab, setActiveTab] = useState<"devices" | "chat" | "console" | "gateway" | "guide">("devices");
@@ -176,23 +222,39 @@ export default function App() {
   // Helper: Generate synth sounds for vocal feedback
   const playBeep = (freq: number, duration: number, type: "sine" | "triangle" | "square" = "sine", volume = 0.08) => {
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
+      // Create a wav-based beep URL dynamically (very reliable across iframe sandbox/suspended states)
+      const beepUrl = createBeepWavUrl(freq, duration, volume);
+      const audio = new Audio(beepUrl);
       
-      oscillator.type = type;
-      oscillator.frequency.value = freq;
-      
-      gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      
-      oscillator.start();
-      oscillator.stop(audioCtx.currentTime + duration);
+      // Attempt play on the Audio element
+      audio.play().catch(err => {
+        console.warn("Audio element play failed, falling back to Web Audio API:", err);
+        try {
+          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const oscillator = audioCtx.createOscillator();
+          const gainNode = audioCtx.createGain();
+          
+          oscillator.type = type;
+          oscillator.frequency.value = freq;
+          
+          gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(audioCtx.destination);
+          
+          if (audioCtx.state === "suspended") {
+            audioCtx.resume();
+          }
+          
+          oscillator.start();
+          oscillator.stop(audioCtx.currentTime + duration);
+        } catch (e) {
+          console.warn("Audio Context fallback beep failed:", e);
+        }
+      });
     } catch (e) {
-      console.warn("Audio Context beep failed:", e);
+      console.warn("WAV-based beep creation/playback failed:", e);
     }
   };
 
@@ -391,6 +453,31 @@ export default function App() {
     return () => clearTimeout(startSync);
   }, []);
 
+  // Proactively unlock AudioContext on first user interaction to ensure sound playback
+  useEffect(() => {
+    const unlockAudio = () => {
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        if (audioCtx.state === "suspended") {
+          audioCtx.resume();
+        }
+        // Play a very quick silent audio to unlock standard HTML5 Audio elements
+        const silentAudio = new Audio(createSilentWavUrl(0.1, 8000));
+        silentAudio.play().catch(() => {});
+      } catch (e) {
+        console.warn("Unlock audio failed:", e);
+      }
+      window.removeEventListener("click", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+    };
+    window.addEventListener("click", unlockAudio);
+    window.addEventListener("keydown", unlockAudio);
+    return () => {
+      window.removeEventListener("click", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+    };
+  }, []);
+
   // Auto-scroll chat history to bottom
   useEffect(() => {
     if (activeTab === "chat") {
@@ -428,8 +515,8 @@ export default function App() {
       try {
         window.speechSynthesis.cancel(); // Stop active speaking first
         
-        // Play loud startup beep immediately! (1000Hz, 0.15s, 0.35 volume is nice and clear)
-        playBeep(1000, 0.15, "sine", 0.35);
+        // Play loud startup beep immediately! (950Hz, 0.22s, 0.85 volume is very loud and clear)
+        playBeep(950, 0.22, "sine", 0.85);
 
         listeningActiveUntilRef.current = Date.now() + listeningDurationRef.current * 1000;
         recognitionRef.current?.start();
@@ -1089,7 +1176,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="flex flex-col gap-4">
                   {(Object.entries(
                     devices.reduce((acc, dev) => {
                       if (!acc[dev.room]) acc[dev.room] = [];

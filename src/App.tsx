@@ -120,7 +120,7 @@ export default function App() {
   const [manualInput, setManualInput] = useState("");
   const [latency, setLatency] = useState("4.2ms");
   const [currentTime, setCurrentTime] = useState("");
-  const [selectedLanguage, setSelectedLanguage] = useState("en-IN");
+  const [selectedLanguage, setSelectedLanguage] = useState("en-US");
 
   // Chat History & Expandable Rooms States
   const [expandedRooms, setExpandedRooms] = useState<Record<string, boolean>>({});
@@ -154,7 +154,6 @@ export default function App() {
   // Refs to avoid stale state in async speech events
   const isProcessingRef = useRef(false);
   const isSpeakingRef = useRef(false);
-  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   // Helper: Log message to dashboard terminal console
   const addLog = (type: SystemLog["type"], message: string, details?: string) => {
@@ -197,109 +196,43 @@ export default function App() {
     if (!speechSynthesisEnabled || !('speechSynthesis' in window)) return;
     try {
       window.speechSynthesis.cancel(); // Stop active voices
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      utterance.lang = selectedLanguage;
       
-      // Resume if browser's SpeechSynthesis engine got stuck in a paused state
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
+      // Select an elegant female/neutral voice in the chosen language if available
+      const voices = window.speechSynthesis.getVoices();
+      const langPrefix = selectedLanguage.split('-')[0];
+      const premiumVoice = voices.find(v => v.lang.startsWith(langPrefix) && (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Synthesis")))
+        || voices.find(v => v.lang.startsWith(langPrefix));
+        
+      if (premiumVoice) {
+        utterance.voice = premiumVoice;
       }
 
-      // We wrap the speak operation in a small timeout to give the browser time to clear its speech queue.
-      // This is a crucial workaround for a Chrome bug where cancel() and speak() run too close together.
-      setTimeout(() => {
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        isSpeakingRef.current = true;
+        // Pause listening while speaking to prevent self-triggering
         try {
-          const utterance = new SpeechSynthesisUtterance(text);
-          activeUtteranceRef.current = utterance; // Keep a strong reference to prevent GC in Chrome
-
-          utterance.rate = 1.05;
-          utterance.pitch = 1.0;
-          utterance.lang = selectedLanguage;
-          
-          // Select an elegant male/neutral voice in the chosen language if available
-          const voices = window.speechSynthesis.getVoices();
-          
-          // Filter voices that match the exact language (e.g., en-IN or en_IN)
-          const exactLangVoices = voices.filter(v => {
-            const lowerLang = v.lang.toLowerCase().replace('_', '-');
-            return lowerLang === selectedLanguage.toLowerCase() || lowerLang.startsWith(selectedLanguage.toLowerCase());
-          });
-          
-          // Find a male voice in our exact language (e.g. Ravi, Karan, male)
-          let chosenVoice = exactLangVoices.find(v => {
-            const lowerName = v.name.toLowerCase();
-            const hasMaleIndicator = lowerName.includes('male') || lowerName.includes('ravi') || lowerName.includes('karan') || lowerName.includes('david') || lowerName.includes('mark') || lowerName.includes('george');
-            const hasFemaleIndicator = lowerName.includes('female') || lowerName.includes('heera') || lowerName.includes('veena') || lowerName.includes('zira') || lowerName.includes('priya') || lowerName.includes('hazel');
-            return hasMaleIndicator && !hasFemaleIndicator;
-          });
-          
-          // Fallback: any voice in our exact language that does not explicitly contain female identifiers
-          if (!chosenVoice) {
-            chosenVoice = exactLangVoices.find(v => {
-              const lowerName = v.name.toLowerCase();
-              return !lowerName.includes('female') && !lowerName.includes('heera') && !lowerName.includes('veena') && !lowerName.includes('zira') && !lowerName.includes('priya') && !lowerName.includes('hazel');
-            });
-          }
-          
-          // Fallback to any voice matching exact language
-          if (!chosenVoice) {
-            chosenVoice = exactLangVoices[0];
-          }
-          
-          // Fallback to any English male voice
-          if (!chosenVoice) {
-            chosenVoice = voices.find(v => {
-              const lowerName = v.name.toLowerCase();
-              const lowerLang = v.lang.toLowerCase().replace('_', '-');
-              const isEnglish = lowerLang.startsWith('en');
-              const hasMaleIndicator = lowerName.includes('male') || lowerName.includes('ravi') || lowerName.includes('karan') || lowerName.includes('david') || lowerName.includes('mark') || lowerName.includes('george');
-              const hasFemaleIndicator = lowerName.includes('female') || lowerName.includes('heera') || lowerName.includes('veena') || lowerName.includes('zira') || lowerName.includes('priya') || lowerName.includes('hazel');
-              return isEnglish && hasMaleIndicator && !hasFemaleIndicator;
-            });
-          }
-          
-          // Fallback to any English voice
-          if (!chosenVoice) {
-            chosenVoice = voices.find(v => v.lang.toLowerCase().replace('_', '-').startsWith('en'));
-          }
-          
-          // Fallback to any premium/synthesis voice
-          if (!chosenVoice) {
-            chosenVoice = voices.find(v => v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Synthesis"));
-          }
-
-          if (chosenVoice) {
-            utterance.voice = chosenVoice;
-            utterance.lang = chosenVoice.lang; // Ensure voice lang and utterance lang match perfectly
-          }
-
-          utterance.onstart = () => {
-            setIsSpeaking(true);
-            isSpeakingRef.current = true;
-            // Pause listening while speaking to prevent self-triggering
-            try {
-              recognitionRef.current?.stop();
-            } catch (err) {
-              console.warn("Failed to stop listening on speech start:", err);
-            }
-          };
-
-          utterance.onend = () => {
-            setIsSpeaking(false);
-            isSpeakingRef.current = false;
-            activeUtteranceRef.current = null;
-          };
-
-          utterance.onerror = (err) => {
-            console.warn("Utterance error callback triggered:", err);
-            setIsSpeaking(false);
-            isSpeakingRef.current = false;
-            activeUtteranceRef.current = null;
-          };
-          
-          window.speechSynthesis.speak(utterance);
-        } catch (innerErr) {
-          console.error("Delayed speak failed:", innerErr);
+          recognitionRef.current?.stop();
+        } catch (err) {
+          console.warn("Failed to stop listening on speech start:", err);
         }
-      }, 100);
+      };
+
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+      };
+
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+      };
+      
+      window.speechSynthesis.speak(utterance);
     } catch (e) {
       console.error("Speech Synthesis error:", e);
     }
@@ -318,16 +251,6 @@ export default function App() {
       const ms = (Math.random() * 3 + 2).toFixed(1);
       setLatency(`${ms}ms`);
     }, 5000);
-
-    // Pre-warm speech synthesis voices (asynchronously loaded by the browser)
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.getVoices();
-      if (window.speechSynthesis.onvoiceschanged !== undefined) {
-        window.speechSynthesis.onvoiceschanged = () => {
-          window.speechSynthesis.getVoices();
-        };
-      }
-    }
 
     addLog("info", "Voice IoT Dashboard loaded.", "Awaiting connection parameters or local microphone triggers.");
 
@@ -722,7 +645,6 @@ export default function App() {
         speakText("Turning on the ambient light.");
       } else {
         setAiResponse(fallbackText);
-        speakText(fallbackText);
       }
 
       // Add fallback assistant response to chat history
@@ -965,6 +887,24 @@ export default function App() {
               <span className="text-[9px] font-mono font-normal tracking-normal text-slate-400 lowercase px-2 py-0.5 rounded-full bg-white/5">
                 v1.2.0
               </span>
+              <div className="flex items-center gap-1 normal-case tracking-normal ml-1">
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="bg-[#1a1d2f] border border-white/10 text-xs text-slate-200 px-2 py-0.5 rounded-md focus:outline-none focus:border-cyan-400/50 cursor-pointer font-sans"
+                  title="Select AI Voice & Transcription Language (Piper/Whisper)"
+                >
+                  <option value="en-US">en-US</option>
+                  <option value="en-IN">en-IN</option>
+                  <option value="es-ES">es-ES</option>
+                  <option value="fr-FR">fr-FR</option>
+                  <option value="de-DE">de-DE</option>
+                  <option value="it-IT">it-IT</option>
+                  <option value="hi-IN">hi-IN</option>
+                  <option value="zh-CN">zh-CN</option>
+                  <option value="ja-JP">ja-JP</option>
+                </select>
+              </div>
             </h1>
             <p className="text-[10px] text-slate-400 font-mono">LOCAL_LINUX_CONTAINER // SECURE_BRIDGE</p>
           </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { 
-  Mic, MicOff, Power, RefreshCw, Volume2, VolumeX, Terminal, Clock,
+  Mic, MicOff, Power, RefreshCw, Volume2, VolumeX, Terminal, 
   Settings, HelpCircle, LayoutGrid, CheckCircle2, AlertCircle, 
   Lightbulb, Thermometer, Wind, Lock, Unlock, ShieldAlert, ShieldCheck, Airplay, Send, Laptop,
   ChevronDown, ChevronUp
@@ -85,52 +85,6 @@ const createSilentWavUrl = (durationSeconds = 2, sampleRate = 8000): string => {
   return URL.createObjectURL(blob);
 };
 
-// Dynamically creates a standard WAV beep file at a specific frequency, duration and volume.
-const createBeepWavUrl = (frequency = 1000, durationSeconds = 0.25, volume = 0.5, sampleRate = 8000): string => {
-  const numChannels = 1;
-  const bitsPerSample = 16;
-  const byteRate = (sampleRate * numChannels * bitsPerSample) / 8;
-  const blockAlign = (numChannels * bitsPerSample) / 8;
-  const numSamples = Math.floor(sampleRate * durationSeconds);
-  const dataSize = numSamples * blockAlign;
-  const chunkSize = 36 + dataSize;
-
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buffer);
-
-  // RIFF identifier "RIFF"
-  view.setUint32(0, 0x52494646, false);
-  // File size minus 8
-  view.setUint32(4, chunkSize, true);
-  // WAVE identifier
-  view.setUint32(8, 0x57415645, false);
-
-  // format chunk identifier "fmt "
-  view.setUint32(12, 0x666d7420, false);
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); // PCM
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitsPerSample, true);
-
-  // data chunk identifier "data"
-  view.setUint32(36, 0x64617461, false);
-  view.setUint32(40, dataSize, true);
-
-  // Sine wave sample generation
-  const amplitude = Math.floor(volume * 32767);
-  for (let i = 0; i < numSamples; i++) {
-    const t = i / sampleRate;
-    const sampleVal = Math.sin(2 * Math.PI * frequency * t);
-    view.setInt16(44 + i * 2, Math.floor(sampleVal * amplitude), true);
-  }
-
-  const blob = new Blob([buffer], { type: "audio/wav" });
-  return URL.createObjectURL(blob);
-};
-
 export default function App() {
   // Navigation: "devices" | "chat" | "console" | "gateway" | "guide"
   const [activeTab, setActiveTab] = useState<"devices" | "chat" | "console" | "gateway" | "guide">("devices");
@@ -172,40 +126,26 @@ export default function App() {
 
   const toggleRoom = (roomName: string) => {
     setExpandedRooms(prev => {
-      const isCurrentlyExpanded = !!prev[roomName];
-      // Close all other rooms, and toggle the clicked one
+      const isCurrentlyExpanded = prev[roomName] !== false;
       return {
+        ...prev,
         [roomName]: !isCurrentlyExpanded
       };
     });
   };
 
-  // Speech Flow states
+  // Wake Word & Speech Flow states
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [listeningDuration, setListeningDuration] = useState(6);
 
   // Speech Recognition reference
   const recognitionRef = useRef<any>(null);
 
   // Refs to avoid stale state in async speech events
-  const listeningDurationRef = useRef(6);
-  const listeningActiveUntilRef = useRef<number>(0);
-  const listeningTimeoutRef = useRef<any>(null);
+  const wakeWordEnabledRef = useRef(false);
   const isProcessingRef = useRef(false);
   const isSpeakingRef = useRef(false);
-  const audioContextRef = useRef<AudioContext | null>(null);
-
-  useEffect(() => {
-    listeningDurationRef.current = listeningDuration;
-  }, [listeningDuration]);
-
-  useEffect(() => {
-    return () => {
-      if (listeningTimeoutRef.current) {
-        clearTimeout(listeningTimeoutRef.current);
-      }
-    };
-  }, []);
+  const hasBeenWokenUpRef = useRef(false);
 
   // Helper: Log message to dashboard terminal console
   const addLog = (type: SystemLog["type"], message: string, details?: string) => {
@@ -221,41 +161,25 @@ export default function App() {
   };
 
   // Helper: Generate synth sounds for vocal feedback
-  const playBeep = (freq: number, duration: number, type: "sine" | "triangle" | "square" = "sine", volume = 0.08) => {
+  const playBeep = (freq: number, duration: number, type: "sine" | "triangle" | "square" = "sine") => {
     try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) {
-        console.warn("AudioContext not supported in this browser.");
-        return;
-      }
-
-      // Reuse pre-unlocked AudioContext if possible
-      let audioCtx = audioContextRef.current;
-      if (!audioCtx) {
-        audioCtx = new AudioCtx();
-        audioContextRef.current = audioCtx;
-      }
-
-      if (audioCtx.state === "suspended") {
-        audioCtx.resume();
-      }
-
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
       
       oscillator.type = type;
       oscillator.frequency.value = freq;
       
-      gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
       
       oscillator.connect(gainNode);
       gainNode.connect(audioCtx.destination);
       
-      oscillator.start(audioCtx.currentTime);
+      oscillator.start();
       oscillator.stop(audioCtx.currentTime + duration);
     } catch (e) {
-      console.warn("Direct playBeep failed:", e);
+      console.warn("Audio Context beep failed:", e);
     }
   };
 
@@ -293,19 +217,14 @@ export default function App() {
       utterance.onend = () => {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
-        // Resume listening if active window is still open
-        const timeLeft = listeningActiveUntilRef.current - Date.now();
-        if (timeLeft > 500 && !isProcessingRef.current) {
+        // Resume background wake word listening if enabled
+        if (wakeWordEnabledRef.current && !isProcessingRef.current) {
           setTimeout(() => {
-            if (!isSpeakingRef.current && !isProcessingRef.current) {
-              const innerTimeLeft = listeningActiveUntilRef.current - Date.now();
-              if (innerTimeLeft > 300) {
-                try {
-                  recognitionRef.current?.start();
-                  setListening(true);
-                } catch (e) {
-                  console.warn("Failed to restart speech recognition after speaking end:", e);
-                }
+            if (wakeWordEnabledRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
+              try {
+                recognitionRef.current?.start();
+              } catch (e) {
+                console.warn("Failed to restart wake word listening after speaking end:", e);
               }
             }
           }, 300);
@@ -315,19 +234,13 @@ export default function App() {
       utterance.onerror = () => {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
-        // Resume listening if active window is still open
-        const timeLeft = listeningActiveUntilRef.current - Date.now();
-        if (timeLeft > 500 && !isProcessingRef.current) {
+        if (wakeWordEnabledRef.current && !isProcessingRef.current) {
           setTimeout(() => {
-            if (!isSpeakingRef.current && !isProcessingRef.current) {
-              const innerTimeLeft = listeningActiveUntilRef.current - Date.now();
-              if (innerTimeLeft > 300) {
-                try {
-                  recognitionRef.current?.start();
-                  setListening(true);
-                } catch (e) {
-                  console.warn("Failed to restart speech recognition after speaking error:", e);
-                }
+            if (wakeWordEnabledRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
+              try {
+                recognitionRef.current?.start();
+              } catch (e) {
+                console.warn("Failed to restart wake word listening after speaking error:", e);
               }
             }
           }, 300);
@@ -368,15 +281,50 @@ export default function App() {
       rec.onstart = () => {
         setListening(true);
         setTranscript("");
+        // Play beep only for active triggers, not background wake loop restarts
+        if (!wakeWordEnabledRef.current || hasBeenWokenUpRef.current) {
+          playBeep(880, 0.12, "sine"); // high beep
+        }
         addLog("info", "Microphone listening stream initialized.");
       };
 
       rec.onresult = (event: any) => {
         const resultText = event.results[0][0].transcript;
         const cleanText = resultText.trim();
-        setTranscript(cleanText);
-        addLog("voice", `Voice command detected: "${cleanText}"`);
-        handleProcessCommand(cleanText);
+        const lowerText = cleanText.toLowerCase();
+
+        if (wakeWordEnabledRef.current) {
+          if (lowerText.includes("jerry")) {
+            const jerryIndex = lowerText.indexOf("jerry");
+            const commandPart = cleanText.slice(jerryIndex + 5).trim();
+
+            if (commandPart.length > 1) {
+              setTranscript(cleanText);
+              addLog("voice", `Wake word + Command detected: "${cleanText}"`);
+              handleProcessCommand(commandPart);
+            } else {
+              setTranscript("Jerry?");
+              addLog("voice", `Wake word detected. Ready for your command!`);
+              playBeep(660, 0.1, "sine");
+              setTimeout(() => playBeep(880, 0.1, "sine"), 100);
+              setAiResponse("Yes? I am listening...");
+              speakText("Yes?");
+              hasBeenWokenUpRef.current = true;
+            }
+          } else if (hasBeenWokenUpRef.current) {
+            hasBeenWokenUpRef.current = false;
+            setTranscript(cleanText);
+            addLog("voice", `Command received after wake word: "${cleanText}"`);
+            handleProcessCommand(cleanText);
+          } else {
+            console.log("Background chatter filtered:", cleanText);
+            addLog("info", `Ambient audio filtered (no wake-word 'Jerry' detected): "${cleanText}"`);
+          }
+        } else {
+          setTranscript(cleanText);
+          addLog("voice", `Voice command detected: "${cleanText}"`);
+          handleProcessCommand(cleanText);
+        }
       };
 
       rec.onerror = (event: any) => {
@@ -389,24 +337,18 @@ export default function App() {
       };
 
       rec.onend = () => {
-        // If the listening timer is still active, auto-restart speech recognition!
-        const timeLeft = listeningActiveUntilRef.current - Date.now();
-        if (timeLeft > 500 && !isProcessingRef.current && !isSpeakingRef.current) {
+        setListening(false);
+        // If wake word is enabled and we are not speaking or processing, restart background listener!
+        if (wakeWordEnabledRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
           setTimeout(() => {
-            if (!isSpeakingRef.current && !isProcessingRef.current) {
-              const innerTimeLeft = listeningActiveUntilRef.current - Date.now();
-              if (innerTimeLeft > 300) {
-                try {
-                  recognitionRef.current?.start();
-                  setListening(true);
-                } catch (e) {
-                  console.warn("Failed to auto-restart speech recognition in active window:", e);
-                }
+            if (wakeWordEnabledRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
+              try {
+                recognitionRef.current?.start();
+              } catch (e) {
+                console.warn("Failed to auto-restart speech recognition:", e);
               }
             }
           }, 300);
-        } else {
-          setListening(false);
         }
       };
 
@@ -429,9 +371,42 @@ export default function App() {
     }
   }, [selectedLanguage]);
 
+  // Sync states to refs to avoid stale closures in voice recognition callbacks
+  useEffect(() => {
+    wakeWordEnabledRef.current = wakeWordEnabled;
+    if (wakeWordEnabled && !listening && speechSupported) {
+      try {
+        window.speechSynthesis.cancel();
+        recognitionRef.current?.start();
+        addLog("info", "Background listening for Wake Word 'Jerry' activated.");
+      } catch (err) {
+        console.warn("Failed starting speech recognition for wake word:", err);
+      }
+    } else if (!wakeWordEnabled && listening) {
+      // If disabled and we were listening in wake word mode, stop it
+      try {
+        recognitionRef.current?.stop();
+        addLog("info", "Background listening for Wake Word deactivated.");
+      } catch (err) {
+        console.warn("Failed stopping speech recognition:", err);
+      }
+    }
+  }, [wakeWordEnabled, listening, speechSupported]);
+
   useEffect(() => {
     isProcessingRef.current = isProcessing;
-  }, [isProcessing]);
+    if (!isProcessing && wakeWordEnabled && !listening && !isSpeakingRef.current && speechSupported) {
+      setTimeout(() => {
+        if (!isProcessingRef.current && wakeWordEnabledRef.current && !isSpeakingRef.current) {
+          try {
+            recognitionRef.current?.start();
+          } catch (e) {
+            console.warn("Failed to resume wake word after processing:", e);
+          }
+        }
+      }, 500);
+    }
+  }, [isProcessing, wakeWordEnabled, listening, speechSupported]);
 
   // Listen for spacebar to trigger voice commands
   useEffect(() => {
@@ -454,36 +429,6 @@ export default function App() {
     return () => clearTimeout(startSync);
   }, []);
 
-  // Proactively unlock AudioContext on first user interaction to ensure sound playback
-  useEffect(() => {
-    const unlockAudio = () => {
-      try {
-        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioCtx) {
-          const ctx = new AudioCtx();
-          if (ctx.state === "suspended") {
-            ctx.resume();
-          }
-          audioContextRef.current = ctx;
-          console.log("Global AudioContext initialized & unlocked on user gesture:", ctx);
-        }
-        // Play a very quick silent audio to unlock standard HTML5 Audio elements
-        const silentAudio = new Audio(createSilentWavUrl(0.1, 8000));
-        silentAudio.play().catch(() => {});
-      } catch (e) {
-        console.warn("Unlock audio failed:", e);
-      }
-      window.removeEventListener("click", unlockAudio);
-      window.removeEventListener("keydown", unlockAudio);
-    };
-    window.addEventListener("click", unlockAudio);
-    window.addEventListener("keydown", unlockAudio);
-    return () => {
-      window.removeEventListener("click", unlockAudio);
-      window.removeEventListener("keydown", unlockAudio);
-    };
-  }, []);
-
   // Auto-scroll chat history to bottom
   useEffect(() => {
     if (activeTab === "chat") {
@@ -499,49 +444,22 @@ export default function App() {
       return;
     }
 
-    // Clear any existing active timeout timer
-    if (listeningTimeoutRef.current) {
-      clearTimeout(listeningTimeoutRef.current);
-      listeningTimeoutRef.current = null;
-    }
-
-    // Check if we are currently listening (or if our window is still open)
-    const isCurrentlyListening = listening;
-
-    if (isCurrentlyListening) {
+    if (listening) {
       try {
-        listeningActiveUntilRef.current = 0;
         recognitionRef.current?.stop();
         setListening(false);
-        addLog("info", "Listening mode deactivated manually.");
       } catch (err) {
         console.warn("Error stopping speech recognition:", err);
       }
     } else {
       try {
-        window.speechSynthesis.cancel(); // Stop active speaking first
-        
-        // Play loud startup beep immediately! (950Hz, 0.22s, 0.85 volume is very loud and clear)
-        playBeep(950, 0.22, "sine", 0.85);
-
-        listeningActiveUntilRef.current = Date.now() + listeningDurationRef.current * 1000;
+        window.speechSynthesis.cancel(); // Stop talking first
+        // If wake word is enabled, mark as woken up so it processes this direct manual trigger as a command
+        if (wakeWordEnabled) {
+          hasBeenWokenUpRef.current = true;
+        }
         recognitionRef.current?.start();
-        setListening(true);
-        addLog("info", `Listening mode activated. Window: ${listeningDurationRef.current}s.`);
-
-        // Setup auto-turn off timeout
-        listeningTimeoutRef.current = setTimeout(() => {
-          listeningActiveUntilRef.current = 0;
-          try {
-            recognitionRef.current?.stop();
-          } catch (e) {
-            // ignore
-          }
-          setListening(false);
-          addLog("info", `Listening window completed (${listeningDurationRef.current}s timeout reached).`);
-          listeningTimeoutRef.current = null;
-        }, listeningDurationRef.current * 1000);
-
+        setListening(true); // Immediate visual feedback for touchscreens
       } catch (err) {
         console.warn("Failed starting speech recognition:", err);
         setListening(false);
@@ -1182,7 +1100,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-5">
                   {(Object.entries(
                     devices.reduce((acc, dev) => {
                       if (!acc[dev.room]) acc[dev.room] = [];
@@ -1190,7 +1108,7 @@ export default function App() {
                       return acc;
                     }, {} as Record<string, Device[]>)
                   ) as Array<[string, Device[]]>).map(([roomName, roomDevs]) => {
-                    const isExpanded = !!expandedRooms[roomName];
+                    const isExpanded = expandedRooms[roomName] !== false;
                     const activeCount = roomDevs.filter(d => d.on).length;
                     
                     return (
@@ -1234,7 +1152,17 @@ export default function App() {
                             {roomDevs.map(dev => (
                               <div 
                                 key={dev.id} 
-                                className="p-3 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 rounded-xl flex flex-col gap-2 transition-all duration-300"
+                                onClick={(e) => {
+                                  // Only toggle if they didn't click on the range input
+                                  if ((e.target as HTMLElement).tagName !== "INPUT") {
+                                    executeDeviceAction(dev.room, dev.deviceKey, dev.on ? "turn_off" : "turn_on");
+                                  }
+                                }}
+                                className={`p-3 border rounded-xl flex flex-col gap-2 transition-all duration-300 cursor-pointer ${
+                                  dev.on 
+                                    ? "bg-cyan-500/10 border-cyan-500/25 hover:bg-cyan-500/15" 
+                                    : "bg-white/5 hover:bg-white/10 border-white/5 hover:border-white/10"
+                                }`}
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3">
@@ -1245,17 +1173,16 @@ export default function App() {
                                     </div>
                                   </div>
 
-                                  <button
-                                    onClick={() => executeDeviceAction(dev.room, dev.deviceKey, dev.on ? "turn_off" : "turn_on")}
-                                    className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                                  <div
+                                    className={`p-1.5 rounded-lg border transition-all ${
                                       dev.on 
-                                        ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/35 shadow-[0_0_10px_rgba(34,211,238,0.15)]" 
-                                        : "bg-slate-800/40 text-slate-400 border-white/5 hover:bg-slate-800"
+                                        ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/35 shadow-[0_0_10px_rgba(34,211,238,0.25)]" 
+                                        : "bg-slate-800/40 text-slate-400 border-white/5"
                                     }`}
                                     title={`Turn ${dev.on ? "Off" : "On"}`}
                                   >
                                     <Power className="w-3.5 h-3.5" />
-                                  </button>
+                                  </div>
                                 </div>
 
                                 {dev.on && dev.category === "fan" && dev.value !== undefined && (
@@ -1385,23 +1312,18 @@ export default function App() {
                   Voice Control Console
                 </h3>
                 <div className="flex gap-2 relative z-10">
-                  <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-800 border border-slate-700/60 hover:border-slate-600 rounded-md transition-colors text-[9px] uppercase tracking-wider text-slate-300 font-semibold">
-                    <Clock className="w-3.5 h-3.5 text-purple-400" />
-                    <span>Timer:</span>
-                    <select 
-                      value={listeningDuration} 
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        setListeningDuration(val);
-                        addLog("info", `Listening duration updated to: ${val}s`);
-                      }}
-                      className="bg-transparent text-purple-300 font-bold outline-none cursor-pointer text-[10px] pl-1 pr-0.5 border-none"
-                    >
-                      {[1,2,3,4,5,6,7,8,9,10].map(s => (
-                        <option key={s} value={s} className="bg-[#11131f] text-slate-200">{s}s</option>
-                      ))}
-                    </select>
-                  </div>
+                  <button 
+                    onClick={() => setWakeWordEnabled(!wakeWordEnabled)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] rounded-md uppercase tracking-wider transition-colors font-semibold cursor-pointer border ${
+                      wakeWordEnabled 
+                        ? "bg-purple-500/20 border-purple-500/40 text-purple-300 hover:bg-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.15)]" 
+                        : "bg-slate-800 hover:bg-slate-700 text-slate-300 border-transparent"
+                    }`}
+                    title={wakeWordEnabled ? "Disable continuous background listening for wake word 'Jerry'" : "Enable continuous background listening for wake word 'Jerry'"}
+                  >
+                    <RefreshCw className={`w-3 h-3 ${wakeWordEnabled ? "text-purple-400 animate-spin" : "text-slate-500"}`} />
+                    <span>{wakeWordEnabled ? "Wake Word Active" : "Wake Word Off"}</span>
+                  </button>
 
                   <button 
                     onClick={() => setSpeechSynthesisEnabled(!speechSynthesisEnabled)}
@@ -1458,8 +1380,12 @@ export default function App() {
                 <div className="mt-5 space-y-3 w-full">
                   <p className={`text-xs font-bold tracking-[0.2em] uppercase transition-colors ${listening ? "text-purple-400" : "text-cyan-400"}`}>
                     {listening 
-                      ? "Listening for command..." 
-                      : "Tap Space or click orb to talk"}
+                      ? (wakeWordEnabled && !hasBeenWokenUpRef.current 
+                          ? "Background Listening (Say 'Jerry')" 
+                          : "Listening for command...") 
+                      : (wakeWordEnabled 
+                          ? "Wake Word Mode Active" 
+                          : "Tap Space or click orb to talk")}
                   </p>
                   
                   {transcript && (
@@ -1487,7 +1413,7 @@ export default function App() {
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
                     </span>
-                    Listening for vocal command...
+                    {wakeWordEnabled && !hasBeenWokenUpRef.current ? "Continuous Wake Word Listening ('Jerry')..." : "Listening for vocal command..."}
                   </span>
                 </div>
               )}

@@ -89,8 +89,9 @@ export default function App() {
   // Check if accessed by localhost
   const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
-  // Navigation: "devices" | "schedules" | "chat" | "console" | "gateway" | "guide"
-  const [activeTab, setActiveTab] = useState<"devices" | "schedules" | "chat" | "console" | "gateway" | "guide">("devices");
+  // Navigation: "devices" | "schedules" | "chat" | "configurations"
+  const [activeTab, setActiveTab] = useState<"devices" | "schedules" | "chat" | "configurations">("devices");
+  const [activeConfigSubTab, setActiveConfigSubTab] = useState<"gateway" | "console" | "guide">("gateway");
 
   // Core App States
   const [devices, setDevices] = useState<Device[]>(INITIAL_DEVICES);
@@ -1162,37 +1163,15 @@ export default function App() {
               Voice & Chat Assistant
             </button>
             <button
-              onClick={() => setActiveTab("console")}
+              onClick={() => setActiveTab("configurations")}
               className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                activeTab === "console"
+                activeTab === "configurations"
                   ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_15px_rgba(99,102,241,0.12)]"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <Terminal className="w-4 h-4" />
-              System Event Console
-            </button>
-            <button
-              onClick={() => setActiveTab("gateway")}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                activeTab === "gateway"
-                  ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
-              }`}
-            >
               <Settings className="w-4 h-4" />
-              Gateway Configuration
-            </button>
-            <button
-              onClick={() => setActiveTab("guide")}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                activeTab === "guide"
-                  ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-[0_0_15px_rgba(16,185,129,0.12)]"
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
-              }`}
-            >
-              <HelpCircle className="w-4 h-4" />
-              Setup Guide & Scripts
+              Configurations
             </button>
           </div>
         </nav>
@@ -1997,33 +1976,75 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === "console" && (
-          <div className="max-w-5xl mx-auto h-[550px]">
-            <SystemLogComponent logs={logs} onClear={() => setLogs([])} />
-          </div>
-        )}
-
-        {activeTab === "gateway" && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <ConnectionSettings config={config} onChange={setConfig} onLog={addLog} />
-            
-            <div className="bg-[#11131f]/40 border border-white/5 p-5 rounded-2xl">
-              <h3 className="text-xs font-bold tracking-wider text-slate-400 uppercase mb-3 pb-2 border-b border-white/5 flex items-center gap-2 font-mono">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                Connection Guidelines
-              </h3>
-              <ul className="text-xs text-slate-400 space-y-2.5 list-disc pl-4 leading-relaxed">
-                <li>Make sure the Python IoT bridge is actively running on your local machine at <code className="text-cyan-400 bg-white/5 px-1 py-0.5 rounded">192.168.29.112:8000</code>.</li>
-                <li>If you are accessing this browser UI via our cloud preview, choose the <strong>Proxied Server Connection</strong> to bypass LAN routing restrictions.</li>
-                <li>Make sure your browser allows mixed-content if running in <strong>Direct LAN Mode</strong>. You can do this by setting Chrome Flags appropriately as shown in the Guide tab.</li>
-              </ul>
+        {activeTab === "configurations" && (
+          <div className="max-w-5xl mx-auto space-y-6">
+            {/* Sub-navigation inside Configurations */}
+            <div className="flex flex-wrap bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full md:w-max gap-1">
+              <button
+                onClick={() => setActiveConfigSubTab("gateway")}
+                className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                  activeConfigSubTab === "gateway"
+                    ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_10px_rgba(245,158,11,0.1)]"
+                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                <Settings className="w-4 h-4" />
+                Gateway Configuration
+              </button>
+              <button
+                onClick={() => setActiveConfigSubTab("console")}
+                className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                  activeConfigSubTab === "console"
+                    ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_10px_rgba(99,102,241,0.1)]"
+                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                <Terminal className="w-4 h-4" />
+                System Event Console
+              </button>
+              <button
+                onClick={() => setActiveConfigSubTab("guide")}
+                className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                  activeConfigSubTab === "guide"
+                    ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
+                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                <HelpCircle className="w-4 h-4" />
+                Setup Guide
+              </button>
             </div>
-          </div>
-        )}
 
-        {activeTab === "guide" && (
-          <div className="max-w-5xl mx-auto">
-            <IntegrationGuide selectedLanguage={selectedLanguage} />
+            {/* Sub-tab Contents */}
+            {activeConfigSubTab === "gateway" && (
+              <div className="space-y-6 animate-fade-in">
+                <ConnectionSettings config={config} onChange={setConfig} onLog={addLog} />
+                
+                <div className="bg-[#11131f]/40 border border-white/5 p-5 rounded-2xl">
+                  <h3 className="text-xs font-bold tracking-wider text-slate-400 uppercase mb-3 pb-2 border-b border-white/5 flex items-center gap-2 font-mono">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    Connection Guidelines
+                  </h3>
+                  <ul className="text-xs text-slate-400 space-y-2.5 list-disc pl-4 leading-relaxed">
+                    <li>Make sure the Python IoT bridge is actively running on your local machine at <code className="text-cyan-400 bg-white/5 px-1 py-0.5 rounded">192.168.29.112:8000</code>.</li>
+                    <li>If you are accessing this browser UI via our cloud preview, choose the <strong>Proxied Server Connection</strong> to bypass LAN routing restrictions.</li>
+                    <li>Make sure your browser allows mixed-content if running in <strong>Direct LAN Mode</strong>. You can do this by setting Chrome Flags appropriately as shown in the Guide tab.</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {activeConfigSubTab === "console" && (
+              <div className="h-[550px] animate-fade-in">
+                <SystemLogComponent logs={logs} onClear={() => setLogs([])} />
+              </div>
+            )}
+
+            {activeConfigSubTab === "guide" && (
+              <div className="animate-fade-in">
+                <IntegrationGuide selectedLanguage={selectedLanguage} />
+              </div>
+            )}
           </div>
         )}
       </main>

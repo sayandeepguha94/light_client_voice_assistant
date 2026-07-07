@@ -55,6 +55,14 @@ from tools import (
     room_off,
     get_state,
     set_temp,
+    is_dark_in_kolkata,
+)
+from automation import (
+    time_automation_on,
+    time_automation_off,
+    night_lamp_automation_on,
+    time_automation_all_off,
+    night_lamp_automation_off,
 )
 
 PORT = 8000
@@ -75,7 +83,7 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
         
-        print("\n[Jerry Hub] Received status polling request.")
+        print("\\n[Jerry Hub] Received status polling request.")
         states = {}
         try:
             for r in devices.DEVICES:
@@ -107,17 +115,17 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
         post_data = self.rfile.read(content_length)
         payload = json.loads(post_data.decode('utf-8'))
         
-        print("\n[Jerry Hub] Received request from Web Voice Hub Dashboard:")
+        print("\\n[Jerry Hub] Received request from Web Voice Hub Dashboard:")
         
         # Scenario A: Natural Language Query / Spoken Voice Command
         query_text = payload.get("query") or payload.get("text")
         if query_text:
-            print(f" -> Passing Spoken/Voice query to Assistant: \"{query_text}\"")
+            print(f" -> Passing Spoken/Voice query to Assistant: \\"{query_text}\\"")
             time_init = time.time()
             try:
                 # Call execute function, storing return value to pass to frontend
                 assistant_response = assistant_openai.execute(query_text)
-                print(f" -> Assistant Response: \"{assistant_response}\"")
+                print(f" -> Assistant Response: \\"{assistant_response}\\"")
                 
                 elapsed = time.time() - time_init
                 print(f" -> Execution Success ({elapsed:.3f}s)")
@@ -140,7 +148,7 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(response_data).encode('utf-8'))
             return
 
-        # Scenario B: Manual Dashboard Button Control (Toggles, Sliders)
+        # Scenario B: Manual Dashboard Button Control (Toggles, Sliders) or Automations
         device_id = payload.get("deviceId")
         action = payload.get("action")
         value = payload.get("value")
@@ -158,7 +166,22 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
         time_init = time.time()
         
         try:
-            if action == "turn_on" and room and device:
+            if action == "time_automation_on":
+                result_msg = time_automation_on()
+                print(f" -> Executed automation time_automation_on(): {result_msg}")
+            elif action == "time_automation_off":
+                result_msg = time_automation_off()
+                print(f" -> Executed automation time_automation_off(): {result_msg}")
+            elif action == "night_lamp_automation_on":
+                result_msg = night_lamp_automation_on()
+                print(f" -> Executed automation night_lamp_automation_on(): {result_msg}")
+            elif action == "time_automation_all_off":
+                result_msg = time_automation_all_off()
+                print(f" -> Executed automation time_automation_all_off(): {result_msg}")
+            elif action == "night_lamp_automation_off":
+                result_msg = night_lamp_automation_off()
+                print(f" -> Executed automation night_lamp_automation_off(): {result_msg}")
+            elif action == "turn_on" and room and device:
                 result_msg = turn_on(room, device)
                 print(f" -> Executed turn_on({room}, {device}): {result_msg}")
             elif action == "turn_off" and room and device:
@@ -180,7 +203,7 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
                 print(f" -> Executed set_temp({room}, {device}, {temp_val}): {result_msg}")
             
             elapsed = time.time() - time_init
-            print(f"[Jerry Hub] Manual Action success: {result_msg} ({elapsed:.3f}s)")
+            print(f"[Jerry Hub] Manual Action/Automation success: {result_msg} ({elapsed:.3f}s)")
             
             response_data = {
                 "status": "success",
@@ -233,27 +256,145 @@ if __name__ == "__main__":
         "high ambient light": "switch.bedroom_2_4node_smart_switch_3_high_ambient_light"
     }
 }`,
-    toolsModule: `def set_temp(room, device, temp = 22):
+    toolsModule: `from datetime import datetime, timezone
+import requests
+from devices import DEVICES
+
+def turn_on(room, device):
+    room = room.lower()
+    device = device.lower()
+    if room not in DEVICES or device not in DEVICES[room]:
+        return "Device not found."
+    entity = DEVICES[room][device]
+    # For a real implementation, connect to Tuya Cloud API or local Home Assistant REST API
+    # headers = {"Authorization": "Bearer YOUR_HA_TOKEN"}
+    # requests.post(f"http://localhost:8123/api/services/{entity.split('.')[0]}/turn_on", json={"entity_id": entity}, headers=headers)
+    print(f"[Local Device Control] Executed TURN ON for {room} {device} ({entity})")
+    return f"{device.capitalize()} in {room} turned ON successfully."
+
+def turn_off(room, device):
+    room = room.lower()
+    device = device.lower()
+    if room not in DEVICES or device not in DEVICES[room]:
+        return "Device not found."
+    entity = DEVICES[room][device]
+    # Connect and trigger real Tuya / Home Assistant API command
+    print(f"[Local Device Control] Executed TURN OFF for {room} {device} ({entity})")
+    return f"{device.capitalize()} in {room} turned OFF successfully."
+
+def set_fan_speed(room, device, speed):
+    room = room.lower()
+    device = device.lower()
+    if room not in DEVICES or device not in DEVICES[room]:
+        return "Device not found."
+    entity = DEVICES[room][device]
+    print(f"[Local Device Control] Executed SET FAN SPEED to {speed} for {room} {device} ({entity})")
+    return f"Fan speed of {room} {device} set to {speed}."
+
+def room_on(room):
+    room = room.lower()
+    if room not in DEVICES:
+        return "Room not found."
+    for device in DEVICES[room]:
+        turn_on(room, device)
+    return f"All devices in {room} turned ON."
+
+def room_off(room):
+    room = room.lower()
+    if room not in DEVICES:
+        return "Room not found."
+    for device in DEVICES[room]:
+        turn_off(room, device)
+    return f"All devices in {room} turned OFF."
+
+def get_state(room, device):
+    room = room.lower()
+    device = device.lower()
+    if room not in DEVICES or device not in DEVICES[room]:
+        return "off"
+    # Query live state from local device cache or coordinator
+    return "on"
+
+def is_dark_in_kolkata():
+    # Kolkata, West Bengal exact coordinates
+    lat, lng = 22.5726, 88.3639
+    
+    # Query API (formatted=0 forces UTC ISO 8601 timestamps)
+    url = f"https://api.sunrise-sunset.org/json?lat={lat}&lng={lng}&formatted=0"
+    response = requests.get(url).json()
+    
+    if response["status"] != "OK":
+        raise Exception("Failed to fetch data from Sunrise-Sunset API")
+        
+    results = response["results"]
+    
+    # Parse UTC sunrise/sunset timestamps natively
+    sunrise = datetime.fromisoformat(results["sunrise"])
+    sunset = datetime.fromisoformat(results["sunset"])
+    
+    # Get the exact current time in UTC
+    now_utc = datetime.now(timezone.utc)
+    
+    # It is dark if current time is before sunrise OR after sunset
+    return now_utc < sunrise or now_utc > sunset
+
+def set_temp(room, device, temp = 22):
+    room = room.lower()
+    device = device.lower()
     if room not in DEVICES:
         return "Room not found."
 
     if device not in DEVICES[room]:
         return "Device not found."
 
-    api = TuyaOpenAPI(ENDPOINT, ACCESS_ID, ACCESS_KEY)
-    api.connect()
-
-    room = room.lower()
-    device = device.lower()
-
     entity = DEVICES[room][device]
-
-    response = api.post(
-        f"/v1.0/devices/{entity}/commands",
-        {"commands": [{"code": "temp", "value": temp}]}
-    )
+    # Connect and trigger real Tuya / Home Assistant API command
+    print(f"[Local Device Control] Executed SET TEMP of {room} {device} to {temp}°C ({entity})")
     msg = f"AC temperature of {room} is set to {temp}"
-    return msg`
+    return msg`,
+    automationModule: `import tools
+
+def time_automation_on():
+    # Automatically triggers at specified evening time
+    if tools.is_dark_in_kolkata():
+        tools.turn_on("living room", "ambient light")
+        tools.turn_on("bedroom", "ambient light")
+        return "Time Automation On triggered because it is dark in Kolkata."
+    else:
+        return "Time Automation On skipped (not dark in Kolkata)."
+
+def time_automation_off():
+    # Triggers late evening. Turns off all main automation-managed lighting
+    tools.turn_off("living room", "ambient light")
+    tools.turn_off("bedroom", "ambient light")
+    tools.turn_off("dine-in", "ambient light")
+    
+    # Auto-chains Night Lamp On
+    night_lamp_automation_on()
+    return "Time Automation Off executed. Chained Night Lamp."
+
+def night_lamp_automation_on():
+    # Turns on bedside night lamp as low-intensity guide
+    tools.turn_on("bedroom", "bedside light")
+    return "Night Lamp On triggered."
+
+def time_automation_all_off():
+    # Sweeps and shuts down all residual decorative/spot-lights at night
+    tools.turn_off("living room", "party light")
+    tools.turn_off("living room", "passage light")
+    tools.turn_off("living room", "spot light")
+    tools.turn_off("dine-in", "spot light")
+    tools.turn_off("dine-in", "low spot light")
+    tools.turn_off("bedroom", "spot light")
+    tools.turn_off("bedroom 2", "low ambient light")
+    tools.turn_off("bedroom 2", "high ambient light")
+    tools.turn_off("bedroom 2", "spot light")
+    return "Time Automation All Off triggered."
+
+def night_lamp_automation_off():
+    # Morning routine: Shuts off bedside night lamp
+    tools.turn_off("bedroom", "bedside light")
+    return "Night Lamp Off triggered."`
   };
 
   return (
@@ -350,8 +491,8 @@ if __name__ == "__main__":
           </div>
 
           <div className="pt-2">
-            <h4 className="text-xs font-semibold text-slate-300 mb-1">Local Config Files (devices.py & tools.py):</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <h4 className="text-xs font-semibold text-slate-300 mb-1">Local Config Files (devices.py, tools.py & automation.py):</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <p className="text-[10px] text-slate-400 font-mono mb-1">devices.py</p>
                 <div className="relative">
@@ -368,7 +509,7 @@ if __name__ == "__main__":
                 </div>
               </div>
               <div>
-                <p className="text-[10px] text-slate-400 font-mono mb-1">tools.py (set_temp added)</p>
+                <p className="text-[10px] text-slate-400 font-mono mb-1">tools.py (Universal Helper Functions)</p>
                 <div className="relative">
                   <pre className="text-[10px] font-mono p-3 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-gray-300 overflow-x-auto whitespace-pre leading-relaxed max-h-48">
                     {codeBlocks.toolsModule}
@@ -379,6 +520,21 @@ if __name__ == "__main__":
                     title="Copy tools.py"
                   >
                     {copiedIndex === 22 ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 font-mono mb-1">automation.py (Ecosystem Routines)</p>
+                <div className="relative">
+                  <pre className="text-[10px] font-mono p-3 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-gray-300 overflow-x-auto whitespace-pre leading-relaxed max-h-48">
+                    {codeBlocks.automationModule}
+                  </pre>
+                  <button
+                    onClick={() => copyToClipboard(codeBlocks.automationModule, 23)}
+                    className="absolute top-1.5 right-1.5 p-1 rounded-md bg-[#161a22] hover:bg-[#1f2633] text-gray-400 hover:text-white transition-colors border border-[#1e222b]"
+                    title="Copy automation.py"
+                  >
+                    {copiedIndex === 23 ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>

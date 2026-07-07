@@ -42,7 +42,7 @@ npm run dev`,
     pythonBridge: `import os
 import json
 import time
-from http.server import SimpleHTTPRequestHandler, HTTPServer
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import assistant_openai
 
 # Import your actual local modules
@@ -149,66 +149,93 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
             return
 
         # Scenario B: Manual Dashboard Button Control (Toggles, Sliders) or Automations
-        device_id = payload.get("deviceId")
-        action = payload.get("action")
-        value = payload.get("value")
+        # Supports either a single command dictionary, or a batch list of commands
+        commands = []
+        if isinstance(payload, list):
+            commands = payload
+        elif isinstance(payload, dict) and "commands" in payload:
+            commands = payload["commands"]
+        else:
+            commands = [payload]
 
-        # Extract room and device from device_id "room.deviceKey"
-        room = None
-        device = None
-        if device_id and "." in device_id:
-            room, device = device_id.split(".", 1)
-        elif payload.get("room"):
-            room = payload.get("room")
-            device = payload.get("device")
-
-        result_msg = "No action executed"
         time_init = time.time()
-        
-        try:
+        results = []
+
+        def execute_single_action(cmd_payload):
+            action = cmd_payload.get("action")
+            device_id = cmd_payload.get("deviceId")
+            value = cmd_payload.get("value")
+
+            # Extract room and device from device_id "room.deviceKey"
+            room = None
+            device = None
+            if device_id and "." in device_id:
+                room, device = device_id.split(".", 1)
+            elif cmd_payload.get("room"):
+                room = cmd_payload.get("room")
+                device = cmd_payload.get("device")
+
             if action == "time_automation_on":
-                result_msg = time_automation_on()
-                print(f" -> Executed automation time_automation_on(): {result_msg}")
+                msg = time_automation_on()
+                print(f" -> Executed automation time_automation_on(): {msg}")
+                return msg
             elif action == "time_automation_off":
-                result_msg = time_automation_off()
-                print(f" -> Executed automation time_automation_off(): {result_msg}")
+                msg = time_automation_off()
+                print(f" -> Executed automation time_automation_off(): {msg}")
+                return msg
             elif action == "night_lamp_automation_on":
-                result_msg = night_lamp_automation_on()
-                print(f" -> Executed automation night_lamp_automation_on(): {result_msg}")
+                msg = night_lamp_automation_on()
+                print(f" -> Executed automation night_lamp_automation_on(): {msg}")
+                return msg
             elif action == "time_automation_all_off":
-                result_msg = time_automation_all_off()
-                print(f" -> Executed automation time_automation_all_off(): {result_msg}")
+                msg = time_automation_all_off()
+                print(f" -> Executed automation time_automation_all_off(): {msg}")
+                return msg
             elif action == "night_lamp_automation_off":
-                result_msg = night_lamp_automation_off()
-                print(f" -> Executed automation night_lamp_automation_off(): {result_msg}")
+                msg = night_lamp_automation_off()
+                print(f" -> Executed automation night_lamp_automation_off(): {msg}")
+                return msg
             elif action == "turn_on" and room and device:
-                result_msg = turn_on(room, device)
-                print(f" -> Executed turn_on({room}, {device}): {result_msg}")
+                msg = turn_on(room, device)
+                print(f" -> Executed turn_on({room}, {device}): {msg}")
+                return msg
             elif action == "turn_off" and room and device:
-                result_msg = turn_off(room, device)
-                print(f" -> Executed turn_off({room}, {device}): {result_msg}")
+                msg = turn_off(room, device)
+                print(f" -> Executed turn_off({room}, {device}): {msg}")
+                return msg
             elif action == "room_on" and room:
-                result_msg = room_on(room)
-                print(f" -> Executed room_on({room}): {result_msg}")
+                msg = room_on(room)
+                print(f" -> Executed room_on({room}): {msg}")
+                return msg
             elif action == "room_off" and room:
-                result_msg = room_off(room)
-                print(f" -> Executed room_off({room}): {result_msg}")
+                msg = room_off(room)
+                print(f" -> Executed room_off({room}): {msg}")
+                return msg
             elif action == "set_fan_speed" and room and device:
-                result_msg = set_fan_speed(room, device, value)
-                print(f" -> Executed set_fan_speed({room}, {device}, {value}): {result_msg}")
+                msg = set_fan_speed(room, device, value)
+                print(f" -> Executed set_fan_speed({room}, {device}, {value}): {msg}")
+                return msg
             elif action == "set_temp" and room and device:
-                # Set AC temperature
                 temp_val = int(value) if value is not None else 22
-                result_msg = set_temp(room, device, temp_val)
-                print(f" -> Executed set_temp({room}, {device}, {temp_val}): {result_msg}")
-            
+                msg = set_temp(room, device, temp_val)
+                print(f" -> Executed set_temp({room}, {device}, {temp_val}): {msg}")
+                return msg
+            return "No action executed"
+
+        try:
+            for cmd in commands:
+                res_msg = execute_single_action(cmd)
+                results.append(res_msg)
+
             elapsed = time.time() - time_init
-            print(f"[Jerry Hub] Manual Action/Automation success: {result_msg} ({elapsed:.3f}s)")
-            
+            combined_msg = " | ".join(results)
+            print(f"[Jerry Hub] Action/Automation execution completed: {combined_msg} ({elapsed:.3f}s)")
+
             response_data = {
                 "status": "success",
-                "response_message": result_msg,
-                "message": result_msg,
+                "response_message": combined_msg,
+                "message": combined_msg,
+                "results": results,
                 "elapsed": f"{elapsed:.3f} seconds"
             }
         except Exception as e:
@@ -218,13 +245,13 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
                 "response_message": str(e),
                 "message": str(e)
             }
-            
+
         self.wfile.write(json.dumps(response_data).encode('utf-8'))
 
 if __name__ == "__main__":
     print(f"Jerry Voice IoT Bridge Server active on port {PORT}...")
     print("Directly connected to local Web Voice Hub!")
-    server = HTTPServer(("0.0.0.0", PORT), JerryBridgeHandler)
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), JerryBridgeHandler)
     server.serve_forever()`,
     chromeFlags: `chrome://flags/#allow-insecure-localhost`,
     devicesModule: `DEVICES = {

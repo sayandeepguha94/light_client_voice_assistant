@@ -3,7 +3,7 @@ import {
   Mic, MicOff, Power, RefreshCw, Volume2, VolumeX, Terminal, 
   Settings, HelpCircle, LayoutGrid, CheckCircle2, AlertCircle, 
   Lightbulb, Thermometer, Wind, Lock, Unlock, ShieldAlert, ShieldCheck, Airplay, Send, Laptop,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp, Zap, Clock
 } from "lucide-react";
 import { Device, SystemLog, ConnectionConfig, ChatMessage } from "./types";
 import ConnectionSettings from "./components/ConnectionSettings";
@@ -89,15 +89,8 @@ export default function App() {
   // Check if accessed by localhost
   const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
-  // Navigation: "devices" | "chat" | "console" | "gateway" | "guide"
-  const [activeTab, setActiveTab] = useState<"devices" | "chat" | "console" | "gateway" | "guide">("devices");
-
-  // Force activeTab to devices if not on localhost
-  useEffect(() => {
-    if (!isLocalhost) {
-      setActiveTab("devices");
-    }
-  }, [isLocalhost]);
+  // Navigation: "devices" | "schedules" | "chat" | "console" | "gateway" | "guide"
+  const [activeTab, setActiveTab] = useState<"devices" | "schedules" | "chat" | "console" | "gateway" | "guide">("devices");
 
   // Core App States
   const [devices, setDevices] = useState<Device[]>(INITIAL_DEVICES);
@@ -121,6 +114,174 @@ export default function App() {
   const [latency, setLatency] = useState("4.2ms");
   const [currentTime, setCurrentTime] = useState("");
   const [selectedLanguage, setSelectedLanguage] = useState("en-IN");
+
+  // Automation Panel States
+  const [automationMode, setAutomationMode] = useState<"all-off" | "all-on" | "custom">("custom");
+  const [isDarkInKolkata, setIsDarkInKolkata] = useState<boolean>(true);
+  const [sunsetInfo, setSunsetInfo] = useState<{
+    sunrise: string;
+    sunset: string;
+    lastChecked: string;
+    isAutoSynced: boolean;
+    error: string | null;
+  } | null>(null);
+  const [isLoadingSunset, setIsLoadingSunset] = useState<boolean>(false);
+
+  const [automations, setAutomations] = useState<Record<string, { id: string; name: string; time: string; enabled: boolean; lastRun?: string }>>({
+    time_automation_on: { id: "time_automation_on", name: "Time Automation On", time: "18:00", enabled: true },
+    time_automation_off: { id: "time_automation_off", name: "Time Automation Off", time: "22:30", enabled: true },
+    time_automation_all_off: { id: "time_automation_all_off", name: "Time Automation All Off", time: "23:00", enabled: true },
+    night_lamp_automation_off: { id: "night_lamp_automation_off", name: "Night Lamp Automation Off", time: "06:00", enabled: true },
+  });
+
+  const devicesRef = useRef(devices);
+  useEffect(() => {
+    devicesRef.current = devices;
+  }, [devices]);
+
+  const runAutomation = (id: string, isScheduled: boolean = false) => {
+    addLog("success", `Automation Run Initialized: ${id}`, isScheduled ? "Triggered by schedule" : "Triggered manually");
+    
+    // Track execution
+    setAutomations(prev => ({
+      ...prev,
+      [id]: { ...prev[id], lastRun: new Date().toLocaleTimeString() }
+    }));
+
+    if (id === "time_automation_on") {
+      if (!isDarkInKolkata) {
+        addLog("warning", "Time Automation On Aborted", "Kolkata Sunset Detector reports it is not dark yet.");
+        return;
+      }
+      
+      // Turn on "time lights" (Ambient Light, Low Ambient Light, High Ambient Light)
+      const targetKeys = ["ambient light", "low ambient light", "high ambient light"];
+      let count = 0;
+      devicesRef.current.forEach(dev => {
+        if (dev.deviceKey && targetKeys.includes(dev.deviceKey.toLowerCase())) {
+          if (!dev.on) {
+            executeDeviceAction(dev.room, dev.deviceKey, "turn_on");
+            count++;
+          }
+        }
+      });
+      addLog("success", "Time Automation On Executed", `Turned on ${count} ambient/time lights because it is dark in Kolkata.`);
+    }
+
+    if (id === "time_automation_off") {
+      // Turn off devices in DEVICES except fan and ac.
+      // DEVICES has: "ambient light", "low ambient light", "high ambient light", "bedside light"
+      let count = 0;
+      devicesRef.current.forEach(dev => {
+        const r = dev.room.toLowerCase();
+        const k = dev.deviceKey?.toLowerCase();
+        if (k && k !== "fan" && k !== "ac") {
+          // Is it an automation-managed device?
+          const isAutomationDev = 
+            (r === "living room" && k === "ambient light") ||
+            (r === "dine-in" && k === "ambient light") ||
+            (r === "bedroom" && (k === "ambient light" || k === "bedside light")) ||
+            (r === "bedroom 2" && (k === "low ambient light" || k === "high ambient light"));
+            
+          if (isAutomationDev && dev.on) {
+            executeDeviceAction(dev.room, dev.deviceKey, "turn_off");
+            count++;
+          }
+        }
+      });
+      addLog("success", "Time Automation Off Executed", `Turned off ${count} automation lights (excluding fan/ac).`);
+
+      // Requirement 5: "when time_automation_off will get triggered, then night_lamp_automation_on will get triggered."
+      addLog("info", "Chained Action: Triggering Night Lamp Automation On...");
+      setTimeout(() => {
+        runAutomation("night_lamp_automation_on");
+      }, 800);
+    }
+
+    if (id === "time_automation_all_off") {
+      // Turn off devices in missing_devices except fan and ac.
+      // missing_devices has: spot light, low spot light, tv, party light, passage light.
+      let count = 0;
+      devicesRef.current.forEach(dev => {
+        const r = dev.room.toLowerCase();
+        const k = dev.deviceKey?.toLowerCase();
+        if (k && k !== "fan" && k !== "ac") {
+          // If it is NOT in the automation-managed devices set, it is in missing_devices!
+          const isAutomationDev = 
+            (r === "living room" && k === "ambient light") ||
+            (r === "dine-in" && k === "ambient light") ||
+            (r === "bedroom" && (k === "ambient light" || k === "bedside light")) ||
+            (r === "bedroom 2" && (k === "low ambient light" || k === "high ambient light"));
+            
+          if (!isAutomationDev && dev.on) {
+            executeDeviceAction(dev.room, dev.deviceKey, "turn_off");
+            count++;
+          }
+        }
+      });
+      addLog("success", "Time Automation All Off Executed", `Turned off ${count} other/missing devices (excluding fan/ac).`);
+    }
+
+    if (id === "night_lamp_automation_on") {
+      // Turn on bedside light in bedroom
+      const dev = devicesRef.current.find(d => d.room.toLowerCase() === "bedroom" && d.deviceKey?.toLowerCase() === "bedside light");
+      if (dev) {
+        if (!dev.on) {
+          executeDeviceAction(dev.room, dev.deviceKey, "turn_on");
+          addLog("success", "Night Lamp Automation On Executed", "Turned on bedroom bedside light.");
+        } else {
+          addLog("info", "Night Lamp Automation On", "Bedside light is already on.");
+        }
+      } else {
+        addLog("warning", "Night Lamp Automation On Failed", "No bedside light found in bedroom.");
+      }
+    }
+
+    if (id === "night_lamp_automation_off") {
+      // Turn off bedside light in bedroom
+      const dev = devicesRef.current.find(d => d.room.toLowerCase() === "bedroom" && d.deviceKey?.toLowerCase() === "bedside light");
+      if (dev) {
+        if (dev.on) {
+          executeDeviceAction(dev.room, dev.deviceKey, "turn_off");
+          addLog("success", "Night Lamp Automation Off Executed", "Turned off bedroom bedside light.");
+        } else {
+          addLog("info", "Night Lamp Automation Off", "Bedside light is already off.");
+        }
+      } else {
+        addLog("warning", "Night Lamp Automation Off Failed", "No bedside light found in bedroom.");
+      }
+    }
+  };
+
+  // Background Automation Scheduler Timer
+  useEffect(() => {
+    let lastCheckedMinute = "";
+    
+    const checkSchedule = () => {
+      // If master mode is "all-off", none of the schedules can run
+      if (automationMode === "all-off") return;
+
+      const now = new Date();
+      const currentHHMM = now.toTimeString().substring(0, 5); // "HH:MM"
+      
+      // Prevent running multiple times in the same minute
+      if (currentHHMM === lastCheckedMinute) return;
+
+      Object.keys(automations).forEach((id) => {
+        const auto = automations[id];
+        // Schedule is active if: master mode is "all-on" OR (master mode is "custom" and individual schedule is enabled)
+        const isScheduleActive = automationMode === "all-on" || (automationMode === "custom" && auto.enabled);
+        
+        if (isScheduleActive && auto.time === currentHHMM) {
+          lastCheckedMinute = currentHHMM;
+          runAutomation(id, true);
+        }
+      });
+    };
+
+    const interval = setInterval(checkSchedule, 1000);
+    return () => clearInterval(interval);
+  }, [automations, automationMode, isDarkInKolkata]);
 
   // Chat History & Expandable Rooms States
   const [expandedRooms, setExpandedRooms] = useState<Record<string, boolean>>({});
@@ -167,6 +328,58 @@ export default function App() {
     };
     setLogs(prev => [newLog, ...prev]);
   };
+
+  // Real-time API Integration for Kolkata Sunset Sensor
+  const fetchKolkataDarkStatus = async () => {
+    setIsLoadingSunset(true);
+    try {
+      // Exact coordinates of Kolkata (lat 22.5726, lng 88.3639)
+      const response = await fetch("https://api.sunrise-sunset.org/json?lat=22.5726&lng=88.3639&formatted=0");
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.status === "OK") {
+        const results = data.results;
+        const sunrise = new Date(results.sunrise);
+        const sunset = new Date(results.sunset);
+        const nowUtc = new Date();
+        
+        // It is dark if current time is before sunrise OR after sunset
+        const isDark = nowUtc < sunrise || nowUtc > sunset;
+        setIsDarkInKolkata(isDark);
+        setSunsetInfo({
+          sunrise: sunrise.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          sunset: sunset.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          lastChecked: new Date().toLocaleTimeString(),
+          isAutoSynced: true,
+          error: null
+        });
+        addLog("info", "Kolkata Sunset sensor synced with API.", `Coords: 22.5726°N, 88.3639°E. Dark: ${isDark ? "YES" : "NO"}`);
+      } else {
+        throw new Error("API response status not OK");
+      }
+    } catch (err: any) {
+      console.error("Sunset API Error:", err);
+      setSunsetInfo(prev => ({
+        sunrise: prev?.sunrise || "--:--",
+        sunset: prev?.sunset || "--:--",
+        lastChecked: new Date().toLocaleTimeString(),
+        isAutoSynced: false,
+        error: "API connection offline"
+      }));
+      addLog("error", "Kolkata Sunset API Sync Failed", err.message || "Failed to reach sunrise-sunset.org");
+    } finally {
+      setIsLoadingSunset(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchKolkataDarkStatus();
+    // Auto re-sync sunset data every 10 minutes to stay accurate
+    const syncInterval = setInterval(fetchKolkataDarkStatus, 10 * 60 * 1000);
+    return () => clearInterval(syncInterval);
+  }, []);
 
   // Helper: Generate synth sounds for vocal feedback
   const playBeep = (freq: number, duration: number, type: "sine" | "triangle" | "square" = "sine", volume: number = 0.08) => {
@@ -913,8 +1126,7 @@ export default function App() {
       </header>
 
       {/* Navigation Tab Bar */}
-      {isLocalhost && (
-        <nav className="w-full max-w-7xl mx-auto mb-6 px-1">
+      <nav className="w-full max-w-7xl mx-auto mb-6 px-1">
           <div className="flex flex-wrap bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full md:w-max gap-1">
             <button
               onClick={() => setActiveTab("devices")}
@@ -926,6 +1138,17 @@ export default function App() {
             >
               <LayoutGrid className="w-4 h-4" />
               Ecosystem Devices
+            </button>
+            <button
+              onClick={() => setActiveTab("schedules")}
+              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                activeTab === "schedules"
+                  ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              Automation Schedules
             </button>
             <button
               onClick={() => setActiveTab("chat")}
@@ -973,7 +1196,6 @@ export default function App() {
             </button>
           </div>
         </nav>
-      )}
 
       {/* Primary Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto mb-6 px-1">
@@ -982,7 +1204,7 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
             
             {/* Rooms and Devices Grid Layout */}
-            <div className={`${isLocalhost ? "lg:col-span-8" : "lg:col-span-12"} bg-[#11131f]/30 border border-white/5 p-6 rounded-2xl flex flex-col justify-between`}>
+            <div className="lg:col-span-8 bg-[#11131f]/30 border border-white/5 p-6 rounded-2xl flex flex-col justify-between">
               <div>
                 <div className="flex flex-wrap gap-3 justify-between items-center mb-6 pb-3 border-b border-white/5">
                   <h2 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-2">
@@ -1144,66 +1366,444 @@ export default function App() {
               </div>
             </div>
 
-            {/* Diagnostics Stats and Signal Panel */}
-            {isLocalhost && (
-              <div className="lg:col-span-4 flex flex-col gap-6">
-                
-                {/* Signal strength indicators */}
-                <div className="bg-[#11131f]/40 border border-white/5 rounded-2xl p-5">
-                  <div className="flex justify-between items-center mb-3">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Subsystem Signal Level</p>
-                    <span className="text-[10px] font-mono text-cyan-400">92% Signal</span>
-                  </div>
-                  <div className="flex items-end gap-1.5 h-16">
-                    <div className="flex-1 bg-cyan-400/40 h-[60%] rounded-sm"></div>
-                    <div className="flex-1 bg-cyan-400/40 h-[85%] rounded-sm"></div>
-                    <div className="flex-1 bg-cyan-400 h-[100%] rounded-sm shadow-[0_0_15px_rgba(34,211,238,0.5)]"></div>
-                    <div className="flex-1 bg-cyan-400/40 h-[70%] rounded-sm"></div>
-                    <div className="flex-1 bg-cyan-400/40 h-[40%] rounded-sm"></div>
-                  </div>
-                </div>
-
-                {/* Subsystem State Card */}
-                <div className="bg-[#11131f]/40 border border-white/5 p-5 rounded-2xl flex-1 flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-xs font-bold tracking-wider text-slate-400 uppercase mb-4 pb-2 border-b border-white/5 flex items-center gap-2">
-                      <Airplay className="w-4 h-4 text-purple-400" />
-                      State Diagnostics
+            {/* Ecosystem Automations Control Panel */}
+            <div className="lg:col-span-4 flex flex-col">
+              
+              {/* Master Control Card */}
+              <div className="bg-[#11131f]/40 border border-white/5 p-5 rounded-2xl flex flex-col justify-between h-full gap-6">
+                <div>
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5 mb-4">
+                    <h3 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
+                      Ecosystem Automations
                     </h3>
-                    <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                      The devices on this page represent physical smart switch nodes configured in your rooms. These updates are synchronized locally to your home hub via:
-                    </p>
-                    
-                    <div className="space-y-2.5 font-mono text-xs">
-                      <div className="flex justify-between p-2 bg-white/5 rounded-lg border border-white/5">
-                        <span className="text-slate-500">Local Ping:</span>
-                        <span className="text-cyan-300 font-bold">{latency}</span>
+                    <span className="text-[10px] font-mono text-cyan-400 font-bold bg-cyan-400/10 px-2.5 py-0.5 rounded-full animate-pulse">
+                      Active
+                    </span>
+                  </div>
+
+                  {/* Info Badge */}
+                  <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                    Manage the general automation overlay and environmental variables here. Detailed clock schedules can now be configured in the new <span className="text-amber-400 font-semibold">Automation Schedules</span> tab above.
+                  </p>
+
+                  {/* Master Mode Selector (All Off, All On, Custom) */}
+                  <div className="bg-slate-900/60 border border-white/5 rounded-xl p-3.5 flex flex-col gap-2 mb-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Master Mode Selector</span>
+                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full ${
+                        automationMode === "all-off" ? "bg-rose-500/10 text-rose-400" :
+                        automationMode === "all-on" ? "bg-emerald-500/10 text-emerald-400" : "bg-cyan-500/10 text-cyan-400"
+                      }`}>
+                        {automationMode === "all-off" ? "All Off" :
+                         automationMode === "all-on" ? "Override (All On)" : "Custom Schedules"}
+                      </span>
+                    </div>
+                    <select
+                      value={automationMode}
+                      onChange={(e) => {
+                        const val = e.target.value as "all-off" | "all-on" | "custom";
+                        setAutomationMode(val);
+                        addLog("info", `Master Automation Mode switched to: ${val.toUpperCase()}`);
+                      }}
+                      className="bg-[#11131f] border border-white/10 text-xs text-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-cyan-400/50 cursor-pointer font-sans w-full"
+                    >
+                      <option value="all-off">🔴 All Off (Pause All Schedules)</option>
+                      <option value="all-on">🟢 All On (Activate All Schedules)</option>
+                      <option value="custom">⚙️ Custom (Follow Individual Rules)</option>
+                    </select>
+                  </div>
+
+                  {/* Kolkata Environment Sensor with real Sunset API Integration */}
+                  <div className="bg-slate-900/40 border border-white/5 rounded-xl p-3.5 flex flex-col gap-3">
+                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-semibold text-white flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                          Kolkata Sunset Sensor
+                        </span>
+                        <span className="text-[9px] text-slate-500 font-mono">is_dark_in_kolkata()</span>
                       </div>
-                      <div className="flex justify-between p-2 bg-white/5 rounded-lg border border-white/5">
-                        <span className="text-slate-500">Controller host:</span>
-                        <span className="text-slate-300">{config.serverIp}</span>
+                      <button
+                        onClick={fetchKolkataDarkStatus}
+                        disabled={isLoadingSunset}
+                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer border border-white/5 disabled:opacity-50"
+                        title="Re-sync with Sunrise-Sunset API"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isLoadingSunset ? 'animate-spin text-cyan-400' : ''}`} />
+                      </button>
+                    </div>
+
+                    {sunsetInfo ? (
+                      <div className="grid grid-cols-2 gap-2 text-[10px] font-mono bg-black/20 p-2 rounded-lg border border-white/5">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-slate-500 uppercase text-[8px] tracking-wider">Sunrise (Local)</span>
+                          <span className="text-amber-400 font-bold">🌅 {sunsetInfo.sunrise}</span>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-slate-500 uppercase text-[8px] tracking-wider">Sunset (Local)</span>
+                          <span className="text-indigo-400 font-bold">🌙 {sunsetInfo.sunset}</span>
+                        </div>
+                        <div className="col-span-2 pt-1.5 border-t border-white/5 flex justify-between items-center text-[8px] text-slate-500">
+                          <span>Checked: {sunsetInfo.lastChecked}</span>
+                          {sunsetInfo.isAutoSynced ? (
+                            <span className="text-emerald-500 flex items-center gap-0.5">● Synced</span>
+                          ) : (
+                            <span className="text-rose-400">Offline Fallback</span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex justify-between p-2 bg-white/5 rounded-lg border border-white/5">
-                        <span className="text-slate-500">Port target:</span>
-                        <span className="text-slate-300">{config.serverPort}</span>
+                    ) : (
+                      <div className="text-center py-2 text-[10px] text-slate-500 font-mono">
+                        {isLoadingSunset ? "Querying Sunrise-Sunset API..." : "No sunset data loaded."}
                       </div>
+                    )}
+
+                    <div className="flex justify-between items-center gap-3 bg-black/10 p-2 rounded-lg border border-white/5">
+                      <span className="text-[10px] text-slate-400">Current Sensor Status</span>
+                      <button
+                        onClick={() => {
+                          setIsDarkInKolkata(!isDarkInKolkata);
+                          addLog("info", `Manual dark override triggered. Kolkata environment dark: ${!isDarkInKolkata}`);
+                        }}
+                        className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer ${
+                          isDarkInKolkata 
+                            ? "bg-indigo-500/15 text-indigo-400 border-indigo-500/30 hover:bg-indigo-500/25 shadow-[0_0_10px_rgba(99,102,241,0.1)]" 
+                            : "bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/25"
+                        }`}
+                      >
+                        {isDarkInKolkata ? "🌙 Dark (Active)" : "☀️ Light (Inactive)"}
+                      </button>
                     </div>
                   </div>
-
-                  <div className="mt-6 pt-4 border-t border-white/5">
-                    <button
-                      onClick={() => setDevices(INITIAL_DEVICES)}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-[10px] rounded-lg uppercase tracking-wider transition-colors text-slate-300 font-semibold cursor-pointer"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Reset Demo Devices</span>
-                    </button>
-                  </div>
                 </div>
 
+                {/* Reset button at the bottom of the column */}
+                <div className="pt-4 border-t border-white/5">
+                  <button
+                    onClick={() => {
+                      setDevices(INITIAL_DEVICES);
+                      addLog("info", "Reset simulated device states to default layout.");
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-[10px] rounded-xl uppercase tracking-wider transition-colors text-slate-300 font-semibold cursor-pointer border border-white/5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
+                    <span>Reset Device Layout</span>
+                  </button>
+                </div>
               </div>
-            )}
 
+            </div>
+
+          </div>
+        )}
+
+        {/* Schedules and Automation List Tab */}
+        {activeTab === "schedules" && (
+          <div className="w-full max-w-5xl mx-auto bg-[#11131f]/20 border border-white/5 p-6 rounded-2xl flex flex-col gap-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-4 border-b border-white/10 gap-4">
+              <div>
+                <h2 className="text-sm font-bold tracking-wider text-slate-300 uppercase flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  Scheduled Automation Tasks
+                </h2>
+                <p className="text-[11px] text-slate-500 mt-1 font-mono">
+                  CONFIGURE AND MANAGE AUTOMATED IoT ROUTINES BY CLOCK TIME SENSORS
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded-full ${
+                  automationMode === "all-off" ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" :
+                  automationMode === "all-on" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+                }`}>
+                  Master Mode: {automationMode === "all-off" ? "ALL OFF (PAUSED)" : automationMode === "all-on" ? "ALL ON (OVERRIDE)" : "CUSTOM"}
+                </span>
+                <button
+                  onClick={() => {
+                    setDevices(INITIAL_DEVICES);
+                    addLog("info", "Reset simulated device states to default layout.");
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[10px] rounded-lg uppercase tracking-wider transition-colors text-slate-300 font-semibold cursor-pointer border border-white/5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Reset Devices
+                </button>
+              </div>
+            </div>
+
+            {/* Schedules Grid Layout */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* time_automation_on */}
+              <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-5 flex flex-col justify-between gap-4">
+                <div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2.5">
+                      <Clock className="w-4 h-4 text-cyan-400" />
+                      <div>
+                        <span className="text-xs font-bold text-slate-200">Time Automation On</span>
+                        <span className="block text-[9px] font-mono text-cyan-400 mt-0.5">is_dark_in_kolkata() == true</span>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={automations.time_automation_on.enabled}
+                        disabled={automationMode !== "custom"}
+                        onChange={(e) => {
+                          setAutomations(prev => ({
+                            ...prev,
+                            time_automation_on: { ...prev.time_automation_on, enabled: e.target.checked }
+                          }));
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-8 h-4.5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-cyan-500 peer-checked:after:bg-white"></div>
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-3 leading-relaxed">
+                    Automatically triggers at the specified evening time. Turns on ambient and decorative lighting in active rooms, but only if the sunset detector reports it is dark in Kolkata.
+                  </p>
+                </div>
+                
+                <div className="flex gap-3 items-center justify-between pt-3 border-t border-white/5">
+                  <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5">
+                    <span className="text-[10px] font-mono text-slate-500 uppercase">Target Time:</span>
+                    <input
+                      type="time"
+                      value={automations.time_automation_on.time}
+                      onChange={(e) => {
+                        setAutomations(prev => ({
+                          ...prev,
+                          time_automation_on: { ...prev.time_automation_on, time: e.target.value }
+                        }));
+                      }}
+                      className="bg-transparent text-xs text-cyan-400 font-mono font-semibold focus:outline-none cursor-pointer [color-scheme:dark]"
+                    />
+                  </div>
+                  <button
+                    onClick={() => runAutomation("time_automation_on")}
+                    className="px-3.5 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-[10px] text-cyan-400 font-bold uppercase tracking-wider rounded-xl border border-cyan-500/20 transition-all cursor-pointer"
+                  >
+                    Trigger Now
+                  </button>
+                </div>
+                {automations.time_automation_on.lastRun && (
+                  <span className="text-[9px] font-mono text-slate-600">
+                    Last execution: {automations.time_automation_on.lastRun}
+                  </span>
+                )}
+              </div>
+
+              {/* time_automation_off */}
+              <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-5 flex flex-col justify-between gap-4">
+                <div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2.5">
+                      <Clock className="w-4 h-4 text-purple-400" />
+                      <div>
+                        <span className="text-xs font-bold text-slate-200">Time Automation Off</span>
+                        <span className="block text-[9px] font-mono text-purple-400 mt-0.5">Auto-chains Night Lamp</span>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={automations.time_automation_off.enabled}
+                        disabled={automationMode !== "custom"}
+                        onChange={(e) => {
+                          setAutomations(prev => ({
+                            ...prev,
+                            time_automation_off: { ...prev.time_automation_off, enabled: e.target.checked }
+                          }));
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-8 h-4.5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-purple-500 peer-checked:after:bg-white"></div>
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-3 leading-relaxed">
+                    Triggers late evening. Turns off all main automation-managed lighting (excluding active climate controls like fan and AC). Automatically triggers the chained Night Lamp routine.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 items-center justify-between pt-3 border-t border-white/5">
+                  <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5">
+                    <span className="text-[10px] font-mono text-slate-500 uppercase">Target Time:</span>
+                    <input
+                      type="time"
+                      value={automations.time_automation_off.time}
+                      onChange={(e) => {
+                        setAutomations(prev => ({
+                          ...prev,
+                          time_automation_off: { ...prev.time_automation_off, time: e.target.value }
+                        }));
+                      }}
+                      className="bg-transparent text-xs text-purple-400 font-mono font-semibold focus:outline-none cursor-pointer [color-scheme:dark]"
+                    />
+                  </div>
+                  <button
+                    onClick={() => runAutomation("time_automation_off")}
+                    className="px-3.5 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-[10px] text-purple-400 font-bold uppercase tracking-wider rounded-xl border border-purple-500/20 transition-all cursor-pointer"
+                  >
+                    Trigger Now
+                  </button>
+                </div>
+                {automations.time_automation_off.lastRun && (
+                  <span className="text-[9px] font-mono text-slate-600">
+                    Last execution: {automations.time_automation_off.lastRun}
+                  </span>
+                )}
+              </div>
+
+              {/* night_lamp_automation_on (Chained indicator) */}
+              <div className="bg-indigo-500/5 border border-dashed border-indigo-500/25 rounded-2xl p-5 flex flex-col justify-between gap-3 md:col-span-2">
+                <div className="flex justify-between items-start md:items-center flex-col md:flex-row gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                    <span className="text-xs font-bold text-indigo-300">Night Lamp Automation On</span>
+                  </div>
+                  <span className="text-[9px] font-mono font-bold uppercase bg-indigo-500/25 text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-500/20">
+                    🔗 Chained Auto-Trigger
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  This task is automatically chained to execute immediately whenever <strong>Time Automation Off</strong> fires. It locates the bedside lamp in the master Bedroom and turns it on to serve as a low-intensity night guide.
+                </p>
+                <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                  <span className="text-[10px] font-mono text-indigo-400">Trigger Action: bedroom.bedside_light = turn_on</span>
+                  <button
+                    onClick={() => runAutomation("night_lamp_automation_on")}
+                    className="px-3 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 text-[9px] text-indigo-300 font-bold uppercase tracking-wider rounded-lg border border-indigo-500/20 transition-all cursor-pointer"
+                  >
+                    Test Chain Action
+                  </button>
+                </div>
+              </div>
+
+              {/* time_automation_all_off */}
+              <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-5 flex flex-col justify-between gap-4">
+                <div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2.5">
+                      <Clock className="w-4 h-4 text-rose-400" />
+                      <div>
+                        <span className="text-xs font-bold text-slate-200">Time Automation All Off</span>
+                        <span className="block text-[9px] font-mono text-rose-400 mt-0.5">Turns off all residual/media</span>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={automations.time_automation_all_off.enabled}
+                        disabled={automationMode !== "custom"}
+                        onChange={(e) => {
+                          setAutomations(prev => ({
+                            ...prev,
+                            time_automation_all_off: { ...prev.time_automation_all_off, enabled: e.target.checked }
+                          }));
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-8 h-4.5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-rose-500 peer-checked:after:bg-white"></div>
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-3 leading-relaxed">
+                    Triggers late at night. Sweeps and shuts down all residual decorative, entertainment, spot-lights, and passage nodes across the missing/non-automated set to maximize power saving (excluding fan and AC).
+                  </p>
+                </div>
+
+                <div className="flex gap-3 items-center justify-between pt-3 border-t border-white/5">
+                  <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5">
+                    <span className="text-[10px] font-mono text-slate-500 uppercase">Target Time:</span>
+                    <input
+                      type="time"
+                      value={automations.time_automation_all_off.time}
+                      onChange={(e) => {
+                        setAutomations(prev => ({
+                          ...prev,
+                          time_automation_all_off: { ...prev.time_automation_all_off, time: e.target.value }
+                        }));
+                      }}
+                      className="bg-transparent text-xs text-rose-400 font-mono font-semibold focus:outline-none cursor-pointer [color-scheme:dark]"
+                    />
+                  </div>
+                  <button
+                    onClick={() => runAutomation("time_automation_all_off")}
+                    className="px-3.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-[10px] text-rose-400 font-bold uppercase tracking-wider rounded-xl border border-rose-500/20 transition-all cursor-pointer"
+                  >
+                    Trigger Now
+                  </button>
+                </div>
+                {automations.time_automation_all_off.lastRun && (
+                  <span className="text-[9px] font-mono text-slate-600">
+                    Last execution: {automations.time_automation_all_off.lastRun}
+                  </span>
+                )}
+              </div>
+
+              {/* night_lamp_automation_off */}
+              <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-5 flex flex-col justify-between gap-4">
+                <div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2.5">
+                      <Clock className="w-4 h-4 text-amber-400" />
+                      <div>
+                        <span className="text-xs font-bold text-slate-200">Night Lamp Automation Off</span>
+                        <span className="block text-[9px] font-mono text-amber-400 mt-0.5">Deactivates bedside lights</span>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={automations.night_lamp_automation_off.enabled}
+                        disabled={automationMode !== "custom"}
+                        onChange={(e) => {
+                          setAutomations(prev => ({
+                            ...prev,
+                            night_lamp_automation_off: { ...prev.night_lamp_automation_off, enabled: e.target.checked }
+                          }));
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-8 h-4.5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-amber-500 peer-checked:after:bg-white"></div>
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-3 leading-relaxed">
+                    Morning routine trigger. Shuts off the active bedroom bedside lamp automatically at the set morning hour, fully closing the sunset-to-sunrise automation sequence.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 items-center justify-between pt-3 border-t border-white/5">
+                  <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5">
+                    <span className="text-[10px] font-mono text-slate-500 uppercase">Target Time:</span>
+                    <input
+                      type="time"
+                      value={automations.night_lamp_automation_off.time}
+                      onChange={(e) => {
+                        setAutomations(prev => ({
+                          ...prev,
+                          night_lamp_automation_off: { ...prev.night_lamp_automation_off, time: e.target.value }
+                        }));
+                      }}
+                      className="bg-transparent text-xs text-amber-400 font-mono font-semibold focus:outline-none cursor-pointer [color-scheme:dark]"
+                    />
+                  </div>
+                  <button
+                    onClick={() => runAutomation("night_lamp_automation_off")}
+                    className="px-3.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-[10px] text-amber-400 font-bold uppercase tracking-wider rounded-xl border border-amber-500/20 transition-all cursor-pointer"
+                  >
+                    Trigger Now
+                  </button>
+                </div>
+                {automations.night_lamp_automation_off.lastRun && (
+                  <span className="text-[9px] font-mono text-slate-600">
+                    Last execution: {automations.night_lamp_automation_off.lastRun}
+                  </span>
+                )}
+              </div>
+
+            </div>
           </div>
         )}
 

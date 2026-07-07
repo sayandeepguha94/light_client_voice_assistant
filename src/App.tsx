@@ -140,14 +140,68 @@ export default function App() {
     devicesRef.current = devices;
   }, [devices]);
 
+  const executeAutomationAction = async (action: string) => {
+    const targetUrl = `http://${config.serverIp}:${config.serverPort}/`;
+    // We send only the action and timestamp. Strictly NO value or device/room identifiers.
+    const payload = {
+      action,
+      timestamp: new Date().toISOString()
+    };
+
+    try {
+      addLog("info", `Forwarding automation trigger to local assistant: ${action}`, JSON.stringify(payload));
+      
+      let dispatchResponse;
+      if (config.useProxy) {
+        dispatchResponse = await fetch("/api/proxy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: targetUrl,
+            method: "POST",
+            body: payload
+          })
+        });
+      } else {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        dispatchResponse = await fetch(targetUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+          mode: "cors"
+        });
+        clearTimeout(timeoutId);
+      }
+
+      if (dispatchResponse.ok) {
+        const responseData = await dispatchResponse.json();
+        addLog("success", `Dispatched automation packet safely to local network assistant for [${action}]!`, responseData.response_message || responseData.message || "Done");
+      } else {
+        throw new Error(`Device responded with error status ${dispatchResponse.status}`);
+      }
+    } catch (dispatchError: any) {
+      console.warn("Direct LAN dispatch for automation failed:", dispatchError);
+      addLog(
+        "warning",
+        `LAN Server ${config.serverIp} unreachable for automation [${action}]`,
+        `Dashboard successfully simulated state change locally, but the remote server at http://${config.serverIp}:${config.serverPort} is currently offline.\nReason: ${dispatchError.message || "Timeout"}.`
+      );
+    }
+  };
+
   const runAutomation = (id: string, isScheduled: boolean = false) => {
     addLog("success", `Automation Run Initialized: ${id}`, isScheduled ? "Triggered by schedule" : "Triggered manually");
     
     // Track execution
-    setAutomations(prev => ({
-      ...prev,
-      [id]: { ...prev[id], lastRun: new Date().toLocaleTimeString() }
-    }));
+    setAutomations(prev => {
+      if (!prev[id]) return prev;
+      return {
+        ...prev,
+        [id]: { ...prev[id], lastRun: new Date().toLocaleTimeString() }
+      };
+    });
 
     if (id === "time_automation_on") {
       if (!isDarkInKolkata) {
@@ -161,12 +215,15 @@ export default function App() {
       devicesRef.current.forEach(dev => {
         if (dev.deviceKey && targetKeys.includes(dev.deviceKey.toLowerCase())) {
           if (!dev.on) {
-            executeDeviceAction(dev.room, dev.deviceKey, "turn_on");
+            updateLocalStateOnly(dev.room, dev.deviceKey, "turn_on");
             count++;
           }
         }
       });
-      addLog("success", "Time Automation On Executed", `Turned on ${count} ambient/time lights because it is dark in Kolkata.`);
+      addLog("success", "Time Automation On Executed", `Turned on ${count} ambient/time lights locally because it is dark in Kolkata.`);
+      
+      // Trigger single backend automation call with NO value passed
+      executeAutomationAction(id);
     }
 
     if (id === "time_automation_off") {
@@ -185,12 +242,15 @@ export default function App() {
             (r === "bedroom 2" && (k === "low ambient light" || k === "high ambient light"));
             
           if (isAutomationDev && dev.on) {
-            executeDeviceAction(dev.room, dev.deviceKey, "turn_off");
+            updateLocalStateOnly(dev.room, dev.deviceKey, "turn_off");
             count++;
           }
         }
       });
-      addLog("success", "Time Automation Off Executed", `Turned off ${count} automation lights (excluding fan/ac).`);
+      addLog("success", "Time Automation Off Executed", `Turned off ${count} automation lights (excluding fan/ac) locally.`);
+
+      // Trigger single backend automation call with NO value passed
+      executeAutomationAction(id);
 
       // Requirement 5: "when time_automation_off will get triggered, then night_lamp_automation_on will get triggered."
       addLog("info", "Chained Action: Triggering Night Lamp Automation On...");
@@ -215,12 +275,15 @@ export default function App() {
             (r === "bedroom 2" && (k === "low ambient light" || k === "high ambient light"));
             
           if (!isAutomationDev && dev.on) {
-            executeDeviceAction(dev.room, dev.deviceKey, "turn_off");
+            updateLocalStateOnly(dev.room, dev.deviceKey, "turn_off");
             count++;
           }
         }
       });
-      addLog("success", "Time Automation All Off Executed", `Turned off ${count} other/missing devices (excluding fan/ac).`);
+      addLog("success", "Time Automation All Off Executed", `Turned off ${count} other/missing devices (excluding fan/ac) locally.`);
+
+      // Trigger single backend automation call with NO value passed
+      executeAutomationAction(id);
     }
 
     if (id === "night_lamp_automation_on") {
@@ -228,14 +291,17 @@ export default function App() {
       const dev = devicesRef.current.find(d => d.room.toLowerCase() === "bedroom" && d.deviceKey?.toLowerCase() === "bedside light");
       if (dev) {
         if (!dev.on) {
-          executeDeviceAction(dev.room, dev.deviceKey, "turn_on");
-          addLog("success", "Night Lamp Automation On Executed", "Turned on bedroom bedside light.");
+          updateLocalStateOnly(dev.room, dev.deviceKey, "turn_on");
+          addLog("success", "Night Lamp Automation On Executed", "Turned on bedroom bedside light locally.");
         } else {
-          addLog("info", "Night Lamp Automation On", "Bedside light is already on.");
+          addLog("info", "Night Lamp Automation On", "Bedside light is already on locally.");
         }
       } else {
         addLog("warning", "Night Lamp Automation On Failed", "No bedside light found in bedroom.");
       }
+
+      // Trigger single backend automation call with NO value passed
+      executeAutomationAction(id);
     }
 
     if (id === "night_lamp_automation_off") {
@@ -243,14 +309,17 @@ export default function App() {
       const dev = devicesRef.current.find(d => d.room.toLowerCase() === "bedroom" && d.deviceKey?.toLowerCase() === "bedside light");
       if (dev) {
         if (dev.on) {
-          executeDeviceAction(dev.room, dev.deviceKey, "turn_off");
-          addLog("success", "Night Lamp Automation Off Executed", "Turned off bedroom bedside light.");
+          updateLocalStateOnly(dev.room, dev.deviceKey, "turn_off");
+          addLog("success", "Night Lamp Automation Off Executed", "Turned off bedroom bedside light locally.");
         } else {
-          addLog("info", "Night Lamp Automation Off", "Bedside light is already off.");
+          addLog("info", "Night Lamp Automation Off", "Bedside light is already off locally.");
         }
       } else {
         addLog("warning", "Night Lamp Automation Off Failed", "No bedside light found in bedroom.");
       }
+
+      // Trigger single backend automation call with NO value passed
+      executeAutomationAction(id);
     }
   };
 

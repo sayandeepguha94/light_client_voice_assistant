@@ -1382,11 +1382,6 @@ export default function App() {
                     </span>
                   </div>
 
-                  {/* Info Badge */}
-                  <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                    Manage the general automation overlay and environmental variables here. Detailed clock schedules can now be configured in the new <span className="text-amber-400 font-semibold">Automation Schedules</span> tab above.
-                  </p>
-
                   {/* Master Mode Selector (All Off, All On, Custom) */}
                   <div className="bg-slate-900/60 border border-white/5 rounded-xl p-3.5 flex flex-col gap-2 mb-4">
                     <div className="flex justify-between items-center">
@@ -1476,20 +1471,6 @@ export default function App() {
                       </button>
                     </div>
                   </div>
-                </div>
-
-                {/* Reset button at the bottom of the column */}
-                <div className="pt-4 border-t border-white/5">
-                  <button
-                    onClick={() => {
-                      setDevices(INITIAL_DEVICES);
-                      addLog("info", "Reset simulated device states to default layout.");
-                    }}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-[10px] rounded-xl uppercase tracking-wider transition-colors text-slate-300 font-semibold cursor-pointer border border-white/5"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
-                    <span>Reset Device Layout</span>
-                  </button>
                 </div>
               </div>
 

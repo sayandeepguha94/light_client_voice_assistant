@@ -254,11 +254,11 @@ export default function App() {
       // Trigger single backend automation call with NO value passed
       executeAutomationAction(id);
 
-      // Requirement 5: "when time_automation_off will get triggered, then night_lamp_automation_on will get triggered."
-      addLog("info", "Chained Action: Triggering Night Lamp Automation On...");
+      // Requirement 5: "when time_automation_off will get triggered, then night_lamp_automation_on will get triggered after 5s."
+      addLog("info", "Chained Action: Triggering Night Lamp Automation On in 5s...");
       setTimeout(() => {
         runAutomation("night_lamp_automation_on");
-      }, 800);
+      }, 5000);
     }
 
     if (id === "time_automation_all_off") {
@@ -271,11 +271,11 @@ export default function App() {
         if (k && k !== "fan" && k !== "ac") {
           // If it is NOT in the automation-managed devices set, it is in missing_devices!
           const isAutomationDev = 
-            (r === "living room" && k === "ambient light") ||
-            (r === "dine-in" && k === "ambient light") ||
-            (r === "bedroom" && (k === "ambient light" || k === "bedside light")) ||
-            (r === "bedroom 2" && (k === "low ambient light" || k === "high ambient light"));
-            
+          (r === "living room" && k === "ambient light") ||
+          (r === "dine-in" && k === "ambient light") ||
+          (r === "bedroom" && (k === "ambient light" || k === "bedside light")) ||
+          (r === "bedroom 2" && (k === "low ambient light" || k === "high ambient light"));
+          
           if (!isAutomationDev && dev.on) {
             updateLocalStateOnly(dev.room, dev.deviceKey, "turn_off");
             count++;
@@ -286,6 +286,12 @@ export default function App() {
 
       // Trigger single backend automation call with NO value passed
       executeAutomationAction(id);
+
+      // Chained Action: Triggering Night Lamp Automation On in 5s...
+      addLog("info", "Chained Action: Triggering Night Lamp Automation On in 5s...");
+      setTimeout(() => {
+        runAutomation("night_lamp_automation_on");
+      }, 5000);
     }
 
     if (id === "night_lamp_automation_on") {
@@ -468,6 +474,48 @@ export default function App() {
     } finally {
       setIsLoadingSunset(false);
     }
+  };
+
+  const parseTimeStringToHHMM = (timeStr: string): string => {
+    if (!timeStr) return "18:00";
+    const match = timeStr.match(/(\d+):(\d+)(?:\s*(AM|PM))?/i);
+    if (!match) return "18:00";
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const ampm = match[3];
+    
+    if (ampm) {
+      if (ampm.toUpperCase() === "PM" && hours < 12) {
+        hours += 12;
+      } else if (ampm.toUpperCase() === "AM" && hours === 12) {
+        hours = 0;
+      }
+    }
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  };
+
+  const resetAutomationTimes = () => {
+    let sunsetTimeStr = "18:00";
+    if (sunsetInfo && sunsetInfo.sunset) {
+      const parsedSunset = parseTimeStringToHHMM(sunsetInfo.sunset);
+      if (parsedSunset) {
+        sunsetTimeStr = parsedSunset;
+      }
+    }
+    
+    setAutomations(prev => ({
+      ...prev,
+      time_automation_on: { ...prev.time_automation_on, time: sunsetTimeStr },
+      time_automation_off: { ...prev.time_automation_off, time: "22:30" },
+      time_automation_all_off: { ...prev.time_automation_all_off, time: "23:00" },
+      night_lamp_automation_off: { ...prev.night_lamp_automation_off, time: "06:00" },
+    }));
+    
+    addLog(
+      "success",
+      "Automation Times Reset Completed",
+      `Schedules successfully synchronized back to default baseline times. "Time Automation On" has been set to sunset local: ${sunsetTimeStr}.`
+    );
   };
 
   useEffect(() => {
@@ -1544,6 +1592,14 @@ export default function App() {
                         {isDarkInKolkata ? "🌙 Dark (Active)" : "☀️ Light (Inactive)"}
                       </button>
                     </div>
+
+                    <button
+                      onClick={resetAutomationTimes}
+                      className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/5 hover:border-white/10 transition-all cursor-pointer font-sans"
+                    >
+                      <Clock className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                      Reset Automation Times
+                    </button>
                   </div>
                 </div>
               </div>

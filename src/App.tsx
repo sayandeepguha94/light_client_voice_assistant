@@ -140,6 +140,8 @@ export default function App() {
     devicesRef.current = devices;
   }, [devices]);
 
+  const lastCheckedMinuteRef = useRef("");
+
   const executeAutomationAction = async (action: string) => {
     const targetUrl = `http://${config.serverIp}:${config.serverPort}/`;
     // We send only the action and timestamp. Strictly NO value or device/room identifiers.
@@ -325,8 +327,6 @@ export default function App() {
 
   // Background Automation Scheduler Timer
   useEffect(() => {
-    let lastCheckedMinute = "";
-    
     const checkSchedule = () => {
       // If master mode is "all-off", none of the schedules can run
       if (automationMode === "all-off") return;
@@ -335,7 +335,7 @@ export default function App() {
       const currentHHMM = now.toTimeString().substring(0, 5); // "HH:MM"
       
       // Prevent running multiple times in the same minute
-      if (currentHHMM === lastCheckedMinute) return;
+      if (currentHHMM === lastCheckedMinuteRef.current) return;
 
       Object.keys(automations).forEach((id) => {
         const auto = automations[id];
@@ -343,7 +343,7 @@ export default function App() {
         const isScheduleActive = automationMode === "all-on" || (automationMode === "custom" && auto.enabled);
         
         if (isScheduleActive && auto.time === currentHHMM) {
-          lastCheckedMinute = currentHHMM;
+          lastCheckedMinuteRef.current = currentHHMM;
           runAutomation(id, true);
         }
       });
@@ -418,14 +418,40 @@ export default function App() {
         // It is dark if current time is before sunrise OR after sunset
         const isDark = nowUtc < sunrise || nowUtc > sunset;
         setIsDarkInKolkata(isDark);
+        
+        const sunsetStr = sunset.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
         setSunsetInfo({
           sunrise: sunrise.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          sunset: sunset.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          sunset: sunsetStr,
           lastChecked: new Date().toLocaleTimeString(),
           isAutoSynced: true,
           error: null
         });
-        addLog("info", "Kolkata Sunset sensor synced with API.", `Coords: 22.5726°N, 88.3639°E. Dark: ${isDark ? "YES" : "NO"}`);
+
+        // 2. The (sunset time - 2 mins) will be time automation on time.
+        if (!isNaN(sunset.getTime())) {
+          const sunsetMinus2 = new Date(sunset.getTime() - 2 * 60 * 1000);
+          const hours = String(sunsetMinus2.getHours()).padStart(2, "0");
+          const minutes = String(sunsetMinus2.getMinutes()).padStart(2, "0");
+          const calculatedTimeStr = `${hours}:${minutes}`;
+
+          setAutomations(prev => ({
+            ...prev,
+            time_automation_on: {
+              ...prev.time_automation_on,
+              time: calculatedTimeStr
+            }
+          }));
+
+          addLog(
+            "info",
+            "Kolkata Sunset sensor synced with API.",
+            `Coords: 22.5726°N, 88.3639°E. Dark: ${isDark ? "YES" : "NO"}. Sunset: ${sunsetStr}. Auto-scheduled Time Automation On to (Sunset - 2m): ${calculatedTimeStr}.`
+          );
+        } else {
+          addLog("info", "Kolkata Sunset sensor synced with API.", `Coords: 22.5726°N, 88.3639°E. Dark: ${isDark ? "YES" : "NO"}`);
+        }
       } else {
         throw new Error("API response status not OK");
       }

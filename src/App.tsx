@@ -3,7 +3,7 @@ import {
   Mic, MicOff, Power, RefreshCw, Volume2, VolumeX, Terminal, 
   Settings, HelpCircle, LayoutGrid, CheckCircle2, AlertCircle, 
   Lightbulb, Thermometer, Wind, Lock, Unlock, ShieldAlert, ShieldCheck, Airplay, Send, Laptop,
-  ChevronDown, ChevronUp, Zap, Clock
+  ChevronDown, ChevronUp, Zap, Clock, RotateCcw
 } from "lucide-react";
 import { Device, SystemLog, ConnectionConfig, ChatMessage } from "./types";
 import ConnectionSettings from "./components/ConnectionSettings";
@@ -494,10 +494,37 @@ export default function App() {
     return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
   };
 
+  const parseTimeStringToHHMMMinusMinutes = (timeStr: string, minsToSubtract: number): string => {
+    if (!timeStr) return "17:57";
+    const match = timeStr.match(/(\d+):(\d+)(?:\s*(AM|PM))?/i);
+    if (!match) return "17:57";
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const ampm = match[3];
+    
+    if (ampm) {
+      if (ampm.toUpperCase() === "PM" && hours < 12) {
+        hours += 12;
+      } else if (ampm.toUpperCase() === "AM" && hours === 12) {
+        hours = 0;
+      }
+    }
+    
+    let totalMinutes = hours * 60 + minutes - minsToSubtract;
+    if (totalMinutes < 0) {
+      totalMinutes += 24 * 60;
+    }
+    
+    const finalHours = Math.floor(totalMinutes / 60) % 24;
+    const finalMinutes = totalMinutes % 60;
+    
+    return `${String(finalHours).padStart(2, "0")}:${String(finalMinutes).padStart(2, "0")}`;
+  };
+
   const resetAutomationTimes = () => {
-    let sunsetTimeStr = "18:00";
+    let sunsetTimeStr = "17:57";
     if (sunsetInfo && sunsetInfo.sunset) {
-      const parsedSunset = parseTimeStringToHHMM(sunsetInfo.sunset);
+      const parsedSunset = parseTimeStringToHHMMMinusMinutes(sunsetInfo.sunset, 3);
       if (parsedSunset) {
         sunsetTimeStr = parsedSunset;
       }
@@ -514,7 +541,28 @@ export default function App() {
     addLog(
       "success",
       "Automation Times Reset Completed",
-      `Schedules successfully synchronized back to default baseline times. "Time Automation On" has been set to sunset local: ${sunsetTimeStr}.`
+      `Schedules successfully synchronized back to default baseline times. "Time Automation On" has been set to sunset - 3 min: ${sunsetTimeStr}.`
+    );
+  };
+
+  const resetTimeAutomationOnOnly = () => {
+    let sunsetTimeStr = "17:57";
+    if (sunsetInfo && sunsetInfo.sunset) {
+      const parsedSunset = parseTimeStringToHHMMMinusMinutes(sunsetInfo.sunset, 3);
+      if (parsedSunset) {
+        sunsetTimeStr = parsedSunset;
+      }
+    }
+    
+    setAutomations(prev => ({
+      ...prev,
+      time_automation_on: { ...prev.time_automation_on, time: sunsetTimeStr },
+    }));
+    
+    addLog(
+      "success",
+      "Time Automation On Reset",
+      `Time Automation On has been reset specifically to sunset - 3 min: ${sunsetTimeStr}.`
     );
   };
 
@@ -1677,8 +1725,8 @@ export default function App() {
                   </p>
                 </div>
                 
-                <div className="flex gap-3 items-center justify-between pt-3 border-t border-white/5">
-                  <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5">
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pt-3 border-t border-white/5">
+                  <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5 justify-between sm:justify-start">
                     <span className="text-[10px] font-mono text-slate-500 uppercase">Target Time:</span>
                     <input
                       type="time"
@@ -1692,12 +1740,22 @@ export default function App() {
                       className="bg-transparent text-xs text-cyan-400 font-mono font-semibold focus:outline-none cursor-pointer [color-scheme:dark]"
                     />
                   </div>
-                  <button
-                    onClick={() => runAutomation("time_automation_on")}
-                    className="px-3.5 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-[10px] text-cyan-400 font-bold uppercase tracking-wider rounded-xl border border-cyan-500/20 transition-all cursor-pointer"
-                  >
-                    Trigger Now
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={resetTimeAutomationOnOnly}
+                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 font-bold uppercase tracking-wider rounded-xl border border-white/5 transition-all cursor-pointer"
+                      title="Reset only Time Automation On to Sunset - 3m"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Reset Time</span>
+                    </button>
+                    <button
+                      onClick={() => runAutomation("time_automation_on")}
+                      className="flex-1 sm:flex-initial px-3.5 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-[10px] text-cyan-400 font-bold uppercase tracking-wider rounded-xl border border-cyan-500/20 transition-all cursor-pointer text-center"
+                    >
+                      Trigger Now
+                    </button>
+                  </div>
                 </div>
                 {automations.time_automation_on.lastRun && (
                   <span className="text-[9px] font-mono text-slate-600">
@@ -1738,8 +1796,8 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="flex gap-3 items-center justify-between pt-3 border-t border-white/5">
-                  <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5">
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pt-3 border-t border-white/5">
+                  <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5 justify-between sm:justify-start">
                     <span className="text-[10px] font-mono text-slate-500 uppercase">Target Time:</span>
                     <input
                       type="time"
@@ -1755,7 +1813,7 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => runAutomation("time_automation_off")}
-                    className="px-3.5 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-[10px] text-purple-400 font-bold uppercase tracking-wider rounded-xl border border-purple-500/20 transition-all cursor-pointer"
+                    className="px-3.5 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-[10px] text-purple-400 font-bold uppercase tracking-wider rounded-xl border border-purple-500/20 transition-all cursor-pointer text-center"
                   >
                     Trigger Now
                   </button>
@@ -1781,11 +1839,11 @@ export default function App() {
                 <p className="text-xs text-slate-400 leading-relaxed">
                   This task is automatically chained to execute immediately whenever <strong>Time Automation Off</strong> fires. It locates the bedside lamp in the master Bedroom and turns it on to serve as a low-intensity night guide.
                 </p>
-                <div className="flex justify-between items-center pt-2 border-t border-white/5">
+                <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between pt-2 border-t border-white/5">
                   <span className="text-[10px] font-mono text-indigo-400">Trigger Action: bedroom.bedside_light = turn_on</span>
                   <button
                     onClick={() => runAutomation("night_lamp_automation_on")}
-                    className="px-3 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 text-[9px] text-indigo-300 font-bold uppercase tracking-wider rounded-lg border border-indigo-500/20 transition-all cursor-pointer"
+                    className="px-3 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 text-[9px] text-indigo-300 font-bold uppercase tracking-wider rounded-lg border border-indigo-500/20 transition-all cursor-pointer text-center"
                   >
                     Test Chain Action
                   </button>
@@ -1824,8 +1882,8 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="flex gap-3 items-center justify-between pt-3 border-t border-white/5">
-                  <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5">
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pt-3 border-t border-white/5">
+                  <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5 justify-between sm:justify-start">
                     <span className="text-[10px] font-mono text-slate-500 uppercase">Target Time:</span>
                     <input
                       type="time"
@@ -1841,7 +1899,7 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => runAutomation("time_automation_all_off")}
-                    className="px-3.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-[10px] text-rose-400 font-bold uppercase tracking-wider rounded-xl border border-rose-500/20 transition-all cursor-pointer"
+                    className="px-3.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-[10px] text-rose-400 font-bold uppercase tracking-wider rounded-xl border border-rose-500/20 transition-all cursor-pointer text-center"
                   >
                     Trigger Now
                   </button>
@@ -1885,8 +1943,8 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="flex gap-3 items-center justify-between pt-3 border-t border-white/5">
-                  <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5">
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pt-3 border-t border-white/5">
+                  <div className="flex items-center gap-2 bg-black/40 border border-white/5 rounded-xl px-3 py-1.5 justify-between sm:justify-start">
                     <span className="text-[10px] font-mono text-slate-500 uppercase">Target Time:</span>
                     <input
                       type="time"
@@ -1902,7 +1960,7 @@ export default function App() {
                   </div>
                   <button
                     onClick={() => runAutomation("night_lamp_automation_off")}
-                    className="px-3.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-[10px] text-amber-400 font-bold uppercase tracking-wider rounded-xl border border-amber-500/20 transition-all cursor-pointer"
+                    className="px-3.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-[10px] text-amber-400 font-bold uppercase tracking-wider rounded-xl border border-amber-500/20 transition-all cursor-pointer text-center"
                   >
                     Trigger Now
                   </button>

@@ -338,7 +338,7 @@ export default function App() {
       if (automationMode === "all-off") return;
 
       const now = new Date();
-      const currentHHMM = now.toTimeString().substring(0, 5); // "HH:MM"
+      const currentHHMM = getKolkataHHMM(now); // Strictly Asia/Kolkata (IST) time
       
       // Prevent running multiple times in the same minute
       if (currentHHMM === lastCheckedMinuteRef.current) return;
@@ -392,9 +392,59 @@ export default function App() {
   const isProcessingRef = useRef(false);
   const isSpeakingRef = useRef(false);
 
+  // Timezone helpers for Asia/Kolkata (IST)
+  const getKolkataHHMM = (date: Date): string => {
+    try {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Kolkata",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      }).formatToParts(date);
+      
+      let hour = "00";
+      let minute = "00";
+      for (const part of parts) {
+        if (part.type === "hour") hour = part.value;
+        if (part.type === "minute") minute = part.value;
+      }
+      let h = parseInt(hour, 10);
+      if (h === 24) h = 0;
+      return `${String(h).padStart(2, "0")}:${minute}`;
+    } catch (err) {
+      return "18:00";
+    }
+  };
+
+  const getKolkataTimeStr = (date: Date): string => {
+    try {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Kolkata",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+      }).formatToParts(date);
+      
+      let hour = "00";
+      let minute = "00";
+      let second = "00";
+      for (const part of parts) {
+        if (part.type === "hour") hour = part.value;
+        if (part.type === "minute") minute = part.value;
+        if (part.type === "second") second = part.value;
+      }
+      let h = parseInt(hour, 10);
+      if (h === 24) h = 0;
+      return `${String(h).padStart(2, "0")}:${minute}:${second}`;
+    } catch (err) {
+      return date.toLocaleTimeString();
+    }
+  };
+
   // Helper: Log message to dashboard terminal console
   const addLog = (type: SystemLog["type"], message: string, details?: string) => {
-    const timestamp = new Date().toLocaleTimeString();
+    const timestamp = getKolkataTimeStr(new Date());
     const newLog: SystemLog = {
       id: Math.random().toString(36).substring(2, 9),
       timestamp,
@@ -425,22 +475,21 @@ export default function App() {
         const isDark = nowUtc < sunrise || nowUtc > sunset;
         setIsDarkInKolkata(isDark);
         
-        const sunsetStr = sunset.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const sunsetStr = getKolkataHHMM(sunset);
+        const sunriseStr = getKolkataHHMM(sunrise);
         
         setSunsetInfo({
-          sunrise: sunrise.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          sunrise: sunriseStr,
           sunset: sunsetStr,
-          lastChecked: new Date().toLocaleTimeString(),
+          lastChecked: getKolkataTimeStr(new Date()),
           isAutoSynced: true,
           error: null
         });
 
-        // 2. The (sunset time - 2 mins) will be time automation on time.
+        // 2. The (sunset time - 3 mins) will be time automation on time.
         if (!isNaN(sunset.getTime())) {
-          const sunsetMinus2 = new Date(sunset.getTime() - 2 * 60 * 1000);
-          const hours = String(sunsetMinus2.getHours()).padStart(2, "0");
-          const minutes = String(sunsetMinus2.getMinutes()).padStart(2, "0");
-          const calculatedTimeStr = `${hours}:${minutes}`;
+          const sunsetMinus3 = new Date(sunset.getTime() - 3 * 60 * 1000);
+          const calculatedTimeStr = getKolkataHHMM(sunsetMinus3);
 
           setAutomations(prev => ({
             ...prev,
@@ -453,7 +502,7 @@ export default function App() {
           addLog(
             "info",
             "Kolkata Sunset sensor synced with API.",
-            `Coords: 22.5726°N, 88.3639°E. Dark: ${isDark ? "YES" : "NO"}. Sunset: ${sunsetStr}. Auto-scheduled Time Automation On to (Sunset - 2m): ${calculatedTimeStr}.`
+            `Coords: 22.5726°N, 88.3639°E. Dark: ${isDark ? "YES" : "NO"}. Sunset (IST): ${sunsetStr}. Auto-scheduled Time Automation On to (Sunset - 3m): ${calculatedTimeStr}.`
           );
         } else {
           addLog("info", "Kolkata Sunset sensor synced with API.", `Coords: 22.5726°N, 88.3639°E. Dark: ${isDark ? "YES" : "NO"}`);
@@ -466,7 +515,7 @@ export default function App() {
       setSunsetInfo(prev => ({
         sunrise: prev?.sunrise || "--:--",
         sunset: prev?.sunset || "--:--",
-        lastChecked: new Date().toLocaleTimeString(),
+        lastChecked: getKolkataTimeStr(new Date()),
         isAutoSynced: false,
         error: "API connection offline"
       }));
@@ -648,7 +697,7 @@ export default function App() {
     // Clock
     const timer = setInterval(() => {
       const d = new Date();
-      setCurrentTime(d.toLocaleTimeString());
+      setCurrentTime(getKolkataTimeStr(d));
     }, 1000);
 
     // Dynamic Latency jitter for immersive feel
@@ -1309,60 +1358,61 @@ export default function App() {
             <p className="text-[10px] uppercase tracking-wider text-slate-500">Local Ping</p>
             <p className="text-xs md:text-sm font-mono text-cyan-200">{latency}</p>
           </div>
-          <div className="border-l border-white/10 pl-4 md:pl-6 flex items-center justify-center">
-            <p className="text-sm md:text-lg font-light font-mono text-slate-300">
+          <div className="border-l border-white/10 pl-4 md:pl-6 flex flex-col justify-center">
+            <p className="text-sm md:text-lg font-light font-mono text-slate-300 leading-none">
               {currentTime || "12:00:00"}
             </p>
+            <span className="text-[9px] font-bold text-cyan-400 font-sans tracking-wider mt-0.5 uppercase">Kolkata IST</span>
           </div>
         </div>
       </header>
 
       {/* Navigation Tab Bar */}
       <nav className="w-full max-w-7xl mx-auto mb-6 px-1">
-          <div className="flex flex-wrap bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full md:w-max gap-1">
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:flex bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full md:w-max gap-1">
             <button
               onClick={() => setActiveTab("devices")}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+              className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                 activeTab === "devices"
                   ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 shadow-[0_0_15px_rgba(34,211,238,0.12)]"
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
+                  : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
               }`}
             >
-              <LayoutGrid className="w-4 h-4" />
-              Ecosystem Devices
+              <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="truncate">Ecosystem Devices</span>
             </button>
             <button
               onClick={() => setActiveTab("schedules")}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+              className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                 activeTab === "schedules"
                   ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
+                  : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
               }`}
             >
-              <Clock className="w-4 h-4" />
-              Automation Schedules
+              <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="truncate">Schedules</span>
             </button>
             <button
               onClick={() => setActiveTab("chat")}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+              className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                 activeTab === "chat"
                   ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_15px_rgba(168,85,247,0.12)]"
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
+                  : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
               }`}
             >
-              <Mic className="w-4 h-4" />
-              Voice & Chat Assistant
+              <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="truncate">Voice Control</span>
             </button>
             <button
               onClick={() => setActiveTab("configurations")}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+              className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                 activeTab === "configurations"
                   ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_15px_rgba(99,102,241,0.12)]"
-                  : "text-slate-400 hover:text-white hover:bg-white/5"
+                  : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
               }`}
             >
-              <Settings className="w-4 h-4" />
-              Configurations
+              <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="truncate">Config</span>
             </button>
           </div>
         </nav>

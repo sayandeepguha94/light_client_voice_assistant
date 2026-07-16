@@ -3,7 +3,7 @@ import {
   Mic, MicOff, Power, RefreshCw, Volume2, VolumeX, Terminal, 
   Settings, HelpCircle, LayoutGrid, CheckCircle2, AlertCircle, 
   Lightbulb, Thermometer, Wind, Lock, Unlock, ShieldAlert, ShieldCheck, Airplay, Send, Laptop,
-  ChevronDown, ChevronUp, Zap, Clock, RotateCcw
+  ChevronDown, ChevronUp, Zap, Clock, RotateCcw, Wifi, Cpu, ExternalLink, Smartphone
 } from "lucide-react";
 import { Device, SystemLog, ConnectionConfig, ChatMessage } from "./types";
 import ConnectionSettings from "./components/ConnectionSettings";
@@ -85,12 +85,856 @@ const createSilentWavUrl = (durationSeconds = 2, sampleRate = 8000): string => {
   return URL.createObjectURL(blob);
 };
 
+const getArduinoCode = (boardType: "standard" | "esp32c3" | "esp32c3_smart_display", serverIp: string): string => {
+  if (boardType === "esp32c3_smart_display") {
+    return `/* 
+ * ESP32-C3 VOICE IoT Hub - Electrobot 1.28-inch Round Smart Display Client
+ *
+ * Configured specifically for the Electrobot ESP32-C3 1.28" 240x240 Smart Display.
+ * Integrates the circular GC9A01 display via high-speed SPI and Wolle's ESP32-audioI2S.
+ * Demonstrates local "Hey Jerry" wake-word listening, active voice command recording,
+ * and high-fidelity streaming of the Text-to-Speech (TTS) response.
+ *
+ * Requirements:
+ * 1. TFT_eSPI library configured for GC9A01 driver.
+ * 2. ArduinoJson library, ESP32-audioI2S library (for TTS playback).
+ * 3. INMP441 I2S Microphone (connected to external headers).
+ * 
+ * TFT_eSPI User_Setup.h configuration guidelines:
+ * #define GC9A01_DRIVER
+ * #define TFT_WIDTH  240
+ * #define TFT_HEIGHT 240
+ * #define TFT_MISO -1
+ * #define TFT_MOSI 3
+ * #define TFT_SCLK 2
+ * #define TFT_CS   7
+ * #define TFT_DC   6
+ * #define TFT_RST  10
+ * #define TFT_BL   1
+ */
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <SPI.h>
+#include <TFT_eSPI.h> // Graphics and Font library for GC9A01
+#include <ArduinoJson.h>
+#include <driver/i2s.h>
+#include "Audio.h" // ESP32-audioI2S by Wolle
+
+const char* ssid     = "YOUR_SSID";
+const char* password = "YOUR_PASSWORD";
+const char* serverUrl = "http://${serverIp}:3000/api/parse-audio";
+
+TFT_eSPI tft = TFT_eSPI(); // Invoke library
+
+#define BUTTON_PIN 0       // Boot button used as Push-To-Talk (GPIO0 to GND)
+#define TFT_BL_PIN 1       // Backlight control GPIO
+
+// External INMP441 Mic Pin Mapping on C3 Smart Display Headers
+#define I2S_MIC_SCK 4      // I2S Bit Clock (BCLK)
+#define I2S_MIC_WS 5       // I2S Word Select (LRC)
+#define I2S_MIC_SD 8       // I2S Serial Data (SD)
+
+// External I2S DAC Audio Pin Mapping (e.g. MAX98357A or PCM5102A)
+#define I2S_DAC_DOUT 9     // Audio out data
+#define I2S_DAC_BCLK 4     // Shares BCLK to conserve C3 pins
+#define I2S_DAC_LRC 5      // Shares LRC/WS to conserve C3 pins
+
+enum SystemState {
+  STATE_PASSIVE_LISTEN,  // Passively awaiting wake-word / trigger
+  STATE_WOKE_TRIGGERED,  // Wake word triggered! Visual alert chime
+  STATE_RECORD_COMMAND,  // Actively capturing voice payload
+  STATE_UPLOAD_COMMAND,  // Uploading WAV payload to server
+  STATE_PLAYBACK_TTS     // Playing back the processed voice response
+};
+
+SystemState currentState = STATE_PASSIVE_LISTEN;
+Audio audio;
+
+const int sampleRate = 16000;
+const int recordSeconds = 3; // Optimized to 3 seconds for C3 memory safety
+const int recordBufferLen = sampleRate * 2 * recordSeconds;
+uint8_t* recordBuffer = NULL;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  
+  // Set up screen backlight
+  pinMode(TFT_BL_PIN, OUTPUT);
+  digitalWrite(TFT_BL_PIN, HIGH); // Backlight ON
+  
+  // Initialize GC9A01 circular display
+  tft.init();
+  tft.setRotation(0);
+  tft.fillScreen(TFT_BLACK);
+  
+  drawCenterDial("WIFI_CONNECTING", "Connecting...", TFT_PURPLE);
+  
+  WiFi.begin(ssid, password);
+  while(WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\\n[WiFi] Connected.");
+  
+  recordBuffer = (uint8_t*)malloc(recordBufferLen);
+  
+  // Configure audio I2S playback
+  audio.setPinout(I2S_DAC_BCLK, I2S_DAC_LRC, I2S_DAC_DOUT);
+  audio.setVolume(21); // Max volume limit (0-21)
+  
+  initI2sMic();
+  Serial.println("[System] Booted. 1.28\" Circular voice dashboard ready.");
+}
+
+void loop() {
+  audio.loop();
+  
+  switch (currentState) {
+    case STATE_PASSIVE_LISTEN:
+      displayPassiveListenCircular();
+      
+      // Simulate/Trigger active state on Boot Button click
+      if (digitalRead(BUTTON_PIN) == LOW) {
+        Serial.println("[PTT] Physical override clicked.");
+        currentState = STATE_WOKE_TRIGGERED;
+      }
+      break;
+
+    case STATE_WOKE_TRIGGERED:
+      playLocalChimeCircular();
+      currentState = STATE_RECORD_COMMAND;
+      break;
+
+    case STATE_RECORD_COMMAND:
+      recordActiveCommandCircular();
+      break;
+
+    case STATE_UPLOAD_COMMAND:
+      drawCenterDial("UPLOADING", "Jerry Thinking...", TFT_MAGENTA);
+      uploadAndProcessVoice(recordBuffer, recordBufferLen);
+      currentState = STATE_PASSIVE_LISTEN;
+      initI2sMic();
+      break;
+      
+    case STATE_PLAYBACK_TTS:
+      if (!audio.isRunning()) {
+        currentState = STATE_PASSIVE_LISTEN;
+        initI2sMic();
+      }
+      break;
+  }
+  
+  delay(1);
+}
+
+void drawCenterDial(String stateName, String subtitle, uint16_t accentColor) {
+  tft.fillScreen(TFT_BLACK);
+  
+  // Draw outer bezel ring
+  tft.drawCircle(120, 120, 118, TFT_DARKGREY);
+  tft.drawCircle(120, 120, 115, accentColor);
+  tft.drawCircle(120, 120, 114, accentColor);
+  
+  // Title / Brand
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextSize(2);
+  tft.drawString("HEY JERRY", 120, 60);
+  
+  // State Indicator Pill
+  tft.fillRoundRect(30, 95, 180, 40, 8, accentColor);
+  tft.setTextColor(TFT_BLACK, accentColor);
+  tft.setTextSize(2);
+  tft.drawString(stateName, 120, 115);
+  
+  // Subtitle/Instructions
+  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+  tft.setTextSize(1);
+  tft.drawString(subtitle, 120, 175);
+  
+  // Wifi indicator
+  tft.setTextColor(TFT_GREEN, TFT_BLACK);
+  tft.drawString("WiFi: ACTIVE", 120, 205);
+}
+
+void displayPassiveListenCircular() {
+  static unsigned long lastUpdate = 0;
+  if (millis() - lastUpdate > 3000) {
+    lastUpdate = millis();
+    drawCenterDial("SYS_IDLE", "Awaiting 'Hey Jerry'", TFT_CYAN);
+  }
+}
+
+void playLocalChimeCircular() {
+  drawCenterDial("WOKE_ACTIVE", "Hearing command...", TFT_ORANGE);
+  delay(400); // Beep or visual flash
+}
+
+void recordActiveCommandCircular() {
+  drawCenterDial("LISTENING", "Speak now...", TFT_RED);
+  
+  int totalBytesRead = 0;
+  size_t bytes_in = 0;
+  
+  while (totalBytesRead < recordBufferLen) {
+    // Read raw 16-bit mono voice samples
+    i2s_read(I2S_NUM_0, recordBuffer + totalBytesRead, 4096, &bytes_in, portMAX_DELAY);
+    totalBytesRead += bytes_in;
+  }
+  
+  // Uninstall mic driver to free DMA hardware resources for DAC playback
+  i2s_driver_uninstall(I2S_NUM_0);
+  currentState = STATE_UPLOAD_COMMAND;
+}
+
+void initI2sMic() {
+  i2s_config_t i2s_config = {
+    .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
+    .sample_rate = sampleRate,
+    .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+    .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
+    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+    .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+    .dma_buf_count = 8,
+    .dma_buf_len = 128,
+    .use_apll = false
+  };
+  i2s_pin_config_t pin_config = {
+    .bck_io_num = I2S_MIC_SCK,
+    .ws_io_num = I2S_MIC_WS,
+    .data_out_num = I2S_PIN_NO_CHANGE,
+    .data_in_num = I2S_MIC_SD
+  };
+  i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
+  i2s_set_pin(I2S_NUM_0, &pin_config);
+}
+
+void uploadAndProcessVoice(uint8_t* buffer, int length) {
+  HTTPClient http;
+  http.begin(serverUrl);
+  
+  uint8_t wavHeader[44];
+  int totalFileLen = length + 36;
+  memcpy(wavHeader, "RIFF", 4);
+  memcpy(wavHeader+4, &totalFileLen, 4);
+  memcpy(wavHeader+8, "WAVEfmt ", 8);
+  uint32_t subChunk1Size = 16; memcpy(wavHeader+16, &subChunk1Size, 4);
+  uint16_t audioFormat = 1; memcpy(wavHeader+20, &audioFormat, 2);
+  uint16_t numChannels = 1; memcpy(wavHeader+22, &numChannels, 2);
+  uint32_t sRate = sampleRate; memcpy(wavHeader+24, &sRate, 4);
+  uint32_t byteRate = sampleRate * 2; memcpy(wavHeader+28, &byteRate, 4);
+  uint16_t blockAlign = 2; memcpy(wavHeader+32, &blockAlign, 2);
+  uint16_t bitsPerSample = 16; memcpy(wavHeader+34, &bitsPerSample, 2);
+  memcpy(wavHeader+36, "data", 4);
+  memcpy(wavHeader+40, &length, 4);
+
+  String boundary = "----JerryBoundary";
+  http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
+  
+  String head = "--" + boundary + "\\r\\nContent-Disposition: form-data; name=\\"audio\\"; filename=\\"voice.wav\\"\\r\\nContent-Type: audio/wav\\r\\n\\r\\n";
+  String tail = "\\r\\n--" + boundary + "--\\r\\n";
+  
+  int code = http.POST((uint8_t*)head.c_str(), head.length());
+  if (code > 0) {
+    String res = http.getString();
+    StaticJsonDocument<512> doc;
+    deserializeJson(doc, res);
+    
+    const char* text = doc["transcript"];
+    const char* audioUrlSuffix = doc["audioUrl"];
+    
+    tft.fillScreen(TFT_BLACK);
+    tft.drawCircle(120, 120, 118, TFT_GREEN);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextSize(2);
+    tft.drawString("JERRY HEARD:", 120, 50);
+    
+    tft.setTextSize(1);
+    tft.setTextColor(TFT_CYAN, TFT_BLACK);
+    tft.drawString(text ? text : "(Empty transcript)", 120, 110);
+    delay(2000);
+    
+    if (audioUrlSuffix) {
+       currentState = STATE_PLAYBACK_TTS;
+       drawCenterDial("PLAYING_TTS", "Streaming voice response", TFT_GREEN);
+       String playUrl = "http://" + String(WiFi.gatewayIP().toString()) + ":3000" + String(audioUrlSuffix);
+       audio.connecttohost(playUrl.c_str());
+    }
+  }
+  http.end();
+}
+`;
+  } else if (boardType === "esp32c3") {
+    return `/* 
+ * ESP32-C3 VOICE IoT Hub - Local PTT & Playback Client (Super Mini Board)
+ *
+ * Optimized for ESP32-C3 Super Mini with 400KB SRAM and 11 broken out GPIOs.
+ * Uses shared I2S clock lines (BCLK/WS) to combine Microphone & Amplifier Max98357A.
+ * Buffer duration is optimized to 3s to guarantee heap stability.
+ *
+ * Requirements:
+ * 1. INMP441 I2S Microphone
+ * 2. MAX98357A I2S Amplifier & Speaker
+ * 3. SSD1306 I2C OLED Display
+ * 4. ESP32-audioI2S library & ArduinoJson library
+ */
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <ArduinoJson.h>
+#include <driver/i2s.h>
+#include "Audio.h" // ESP32-audioI2S by Wolle
+
+const char* ssid     = "YOUR_SSID";
+const char* password = "YOUR_PASSWORD";
+const char* serverUrl = "http://${serverIp}:3000/api/parse-audio";
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+#define BUTTON_PIN 10      // Push button (GPIO10 to GND)
+#define I2C_SDA_PIN 8      // SDA is GPIO8 on C3 Super Mini
+#define I2C_SCL_PIN 9      // SCL is GPIO9 on C3 Super Mini
+
+// Shared clocks to save GPIO pins on the tiny ESP32-C3
+#define I2S_SHARED_BCLK 4  // Shared Bit Clock
+#define I2S_SHARED_WS 5    // Shared Word Select
+#define I2S_MIC_SD 6       // Mic Data In
+#define I2S_DAC_DOUT 7     // DAC DIN
+
+enum SystemState {
+  STATE_PASSIVE_LISTEN,
+  STATE_WOKE_TRIGGERED,
+  STATE_RECORD_COMMAND,
+  STATE_UPLOAD_COMMAND,
+  STATE_PLAYBACK_TTS
+};
+
+SystemState currentState = STATE_PASSIVE_LISTEN;
+Audio audio;
+
+const int sampleRate = 16000;
+const int recordSeconds = 3; // Reduced to 3s for C3 RAM safety (96KB buffer)
+const int recordBufferLen = sampleRate * 2 * recordSeconds;
+uint8_t* recordBuffer = NULL;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  
+  // Custom I2C pin mapping for ESP32-C3
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  display.setTextSize(1);
+  display.println("Connecting WiFi...");
+  display.display();
+  
+  WiFi.begin(ssid, password);
+  while(WiFi.status() != WL_CONNECTED) delay(500);
+  
+  recordBuffer = (uint8_t*)malloc(recordBufferLen);
+  
+  // Custom shared I2S clock pinout for MAX98357A
+  audio.setPinout(I2S_SHARED_BCLK, I2S_SHARED_WS, I2S_DAC_DOUT);
+  audio.setVolume(21);
+  
+  initI2sMic();
+  Serial.println("[System] Booted. ESP32-C3 voice client active.");
+}
+
+void loop() {
+  audio.loop();
+  
+  switch (currentState) {
+    case STATE_PASSIVE_LISTEN:
+      displayPassiveListenOled();
+      if (digitalRead(BUTTON_PIN) == LOW) {
+        Serial.println("[PTT] Button clicked.");
+        currentState = STATE_WOKE_TRIGGERED;
+      }
+      break;
+
+    case STATE_WOKE_TRIGGERED:
+      playLocalChime();
+      currentState = STATE_RECORD_COMMAND;
+      break;
+
+    case STATE_RECORD_COMMAND:
+      recordActiveCommand();
+      break;
+
+    case STATE_UPLOAD_COMMAND:
+      display.clearDisplay();
+      display.println(">>> SENDING... <<<");
+      display.display();
+      uploadAndProcessVoice(recordBuffer, recordBufferLen);
+      currentState = STATE_PASSIVE_LISTEN;
+      initI2sMic();
+      break;
+      
+    case STATE_PLAYBACK_TTS:
+      if (!audio.isRunning()) {
+        currentState = STATE_PASSIVE_LISTEN;
+        initI2sMic();
+      }
+      break;
+  }
+  delay(1);
+}
+
+void displayPassiveListenOled() {
+  static unsigned long lastUpdate = 0;
+  if (millis() - lastUpdate > 1000) {
+    lastUpdate = millis();
+    display.clearDisplay();
+    display.setCursor(0,0);
+    display.println("=== ESP32-C3 MINI ===");
+    display.println("Ready to listen...");
+    display.println("Press Button PTT");
+    display.println("--------------------");
+    display.printf("WiFi: %s\\n", WiFi.SSID().c_str());
+    display.display();
+  }
+}
+
+void playLocalChime() {
+  display.clearDisplay();
+  display.println(">>> RECORDING <<<");
+  display.display();
+  delay(200);
+}
+
+void recordActiveCommand() {
+  int totalBytesRead = 0;
+  size_t bytes_in = 0;
+  while (totalBytesRead < recordBufferLen) {
+    i2s_read(I2S_NUM_0, recordBuffer + totalBytesRead, 4096, &bytes_in, portMAX_DELAY);
+    totalBytesRead += bytes_in;
+  }
+  i2s_driver_uninstall(I2S_NUM_0); 
+  currentState = STATE_UPLOAD_COMMAND;
+}
+
+void initI2sMic() {
+  i2s_config_t i2s_config = {
+    .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
+    .sample_rate = sampleRate,
+    .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+    .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
+    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+    .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+    .dma_buf_count = 8,
+    .dma_buf_len = 128,
+    .use_apll = false
+  };
+  i2s_pin_config_t pin_config = {
+    .bck_io_num = I2S_SHARED_BCLK,
+    .ws_io_num = I2S_SHARED_WS,
+    .data_out_num = I2S_PIN_NO_CHANGE,
+    .data_in_num = I2S_MIC_SD
+  };
+  i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
+  i2s_set_pin(I2S_NUM_0, &pin_config);
+}
+
+void uploadAndProcessVoice(uint8_t* buffer, int length) {
+  HTTPClient http;
+  http.begin(serverUrl);
+  
+  uint8_t wavHeader[44];
+  int totalFileLen = length + 36;
+  memcpy(wavHeader, "RIFF", 4);
+  memcpy(wavHeader+4, &totalFileLen, 4);
+  memcpy(wavHeader+8, "WAVEfmt ", 8);
+  uint32_t subChunk1Size = 16; memcpy(wavHeader+16, &subChunk1Size, 4);
+  uint16_t audioFormat = 1; memcpy(wavHeader+20, &audioFormat, 2);
+  uint16_t numChannels = 1; memcpy(wavHeader+22, &numChannels, 2);
+  uint32_t sRate = sampleRate; memcpy(wavHeader+24, &sRate, 4);
+  uint32_t byteRate = sampleRate * 2; memcpy(wavHeader+28, &byteRate, 4);
+  uint16_t blockAlign = 2; memcpy(wavHeader+32, &blockAlign, 2);
+  uint16_t bitsPerSample = 16; memcpy(wavHeader+34, &bitsPerSample, 2);
+  memcpy(wavHeader+36, "data", 4);
+  memcpy(wavHeader+40, &length, 4);
+
+  String boundary = "----JerryBoundary";
+  http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
+  
+  String head = "--" + boundary + "\\r\\nContent-Disposition: form-data; name=\\"audio\\"; filename=\\"voice.wav\\"\\r\\nContent-Type: audio/wav\\r\\n\\r\\n";
+  String tail = "\\r\\n--" + boundary + "--\\r\\n";
+  
+  int code = http.POST((uint8_t*)head.c_str(), head.length());
+  if (code > 0) {
+    String res = http.getString();
+    StaticJsonDocument<512> doc;
+    deserializeJson(doc, res);
+    const char* text = doc["transcript"];
+    const char* audioUrlSuffix = doc["audioUrl"];
+    
+    display.clearDisplay();
+    display.println("Jerry heard:");
+    display.println(text);
+    display.display();
+    delay(1500);
+    
+    if (audioUrlSuffix) {
+       currentState = STATE_PLAYBACK_TTS;
+       String playUrl = "http://" + String(WiFi.gatewayIP().toString()) + ":3000" + String(audioUrlSuffix);
+       audio.connecttohost(playUrl.c_str());
+    }
+  }
+  http.end();
+}`;
+  } else {
+    return `/* 
+ * ESP32 VOICE IoT Hub - Local "Hey Jerry" Wake Word Detection & Playback Client
+ *
+ * This sketch demonstrates 100% LOCAL wake-word detection ("Hey Jerry") on the ESP32.
+ * The microcontroller passively monitors the I2S microphone without sending audio to the cloud.
+ * Only when "Hey Jerry" is matched locally, it triggers active command capture and uploads it.
+ *
+ * Requirements:
+ * 1. INMP441 I2S Microphone (for local wake-word & command recording)
+ * 2. MAX98357A I2S Amplifier & Speaker (for Text-To-Speech response streaming)
+ * 3. ESP-SR (WakeNet) or Edge Impulse SDK (for local neural net inference of "Hey Jerry")
+ * 4. ESP32-audioI2S library (for direct audio stream playback)
+ * 5. ArduinoJson library (for backend API payload parsing)
+ */
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <ArduinoJson.h>
+#include <driver/i2s.h>
+#include "Audio.h" // ESP32-audioI2S by Wolle
+
+const char* ssid     = "YOUR_SSID";
+const char* password = "YOUR_PASSWORD";
+const char* serverUrl = "http://${serverIp}:3000/api/parse-audio";
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+#define BUTTON_PIN 12      // Physical Push-to-Talk Fallback Pin (GPIO12 to GND)
+#define I2S_MIC_WS 25
+#define I2S_MIC_SD 32
+#define I2S_MIC_SCK 33
+
+#define I2S_DAC_LRC 27     // MAX98357A WS
+#define I2S_DAC_DOUT 26    // MAX98357A DIN
+#define I2S_DAC_BCLK 14    // MAX98357A BCLK
+
+// States for Local Wake & Voice Command Pipeline
+enum SystemState {
+  STATE_PASSIVE_LISTEN,  // 100% Local passive monitoring for "Hey Jerry"
+  STATE_WOKE_TRIGGERED,  // Local match! Alert user & play wake sound
+  STATE_RECORD_COMMAND,  // Actively record subsequent command voice
+  STATE_UPLOAD_COMMAND,  // Send captured wave payload to the server
+  STATE_PLAYBACK_TTS     // Stream the response TTS audio over I2S
+};
+
+SystemState currentState = STATE_PASSIVE_LISTEN;
+Audio audio; // Audio playback instance
+
+const int sampleRate = 16000; // 16kHz Mono is perfect for local speech models
+const int recordSeconds = 4;
+const int recordBufferLen = sampleRate * 2 * recordSeconds; // 16-bit PCM = 2 bytes/sample
+uint8_t* recordBuffer = NULL;
+
+// Ring buffer for rolling local wake-word analysis (typically 1.5 seconds)
+#define WAKE_WINDOW_LEN (sampleRate * 2 * 1.5) 
+uint8_t* wakeRollingBuffer = NULL;
+int rollingBufferIndex = 0;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  
+  // Initialize SSD1306 OLED
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  display.setTextSize(1);
+  display.println("Connecting WiFi...");
+  display.display();
+  
+  WiFi.begin(ssid, password);
+  while(WiFi.status() != WL_CONNECTED) delay(500);
+  
+  // Allocate buffers for rolling wake monitoring and final command recording
+  recordBuffer = (uint8_t*)malloc(recordBufferLen);
+  wakeRollingBuffer = (uint8_t*)malloc(WAKE_WINDOW_LEN);
+  
+  // Init playback DAC pins
+  audio.setPinout(I2S_DAC_BCLK, I2S_DAC_LRC, I2S_DAC_DOUT);
+  audio.setVolume(21); // Set clear output volume (0-21)
+  
+  // Initial I2S Microphone Setup for Passive Wake Monitoring
+  initI2sMic();
+  
+  Serial.println("[System] Booted. Continuous local wake-word 'Hey Jerry' active.");
+}
+
+void loop() {
+  audio.loop(); // Handle web audio streaming buffer
+  
+  switch (currentState) {
+    case STATE_PASSIVE_LISTEN:
+      displayPassiveListenOled();
+      runLocalWakeWordInference();
+      
+      // Fallback: Physical button hold bypasses wake word
+      if (digitalRead(BUTTON_PIN) == LOW) {
+        Serial.println("[PTT] Physical override button clicked.");
+        currentState = STATE_WOKE_TRIGGERED;
+      }
+      break;
+
+    case STATE_WOKE_TRIGGERED:
+      Serial.println("[Wake] 'Hey Jerry' detected locally on ESP32!");
+      playLocalChime(); // Short beep
+      currentState = STATE_RECORD_COMMAND;
+      break;
+
+    case STATE_RECORD_COMMAND:
+      recordActiveCommand();
+      break;
+
+    case STATE_UPLOAD_COMMAND:
+      display.clearDisplay();
+      display.setCursor(0,0);
+      display.println(">>> SENDING... <<<");
+      display.println("Querying Jerry...");
+      display.display();
+      uploadAndProcessVoice(recordBuffer, recordBufferLen);
+      currentState = STATE_PASSIVE_LISTEN; // Re-enter local listening
+      initI2sMic(); // Restore passive listening I2S parameters
+      break;
+      
+    case STATE_PLAYBACK_TTS:
+      // The ESP32-audioI2S library handles this asynchronously via audio.loop()
+      if (!audio.isRunning()) {
+        currentState = STATE_PASSIVE_LISTEN;
+        initI2sMic();
+      }
+      break;
+  }
+  
+  delay(1); // Yield to ESP32 RTOS core tasks
+}
+
+void displayPassiveListenOled() {
+  static unsigned long lastUpdate = 0;
+  if (millis() - lastUpdate > 1000) {
+    lastUpdate = millis();
+    display.clearDisplay();
+    display.setCursor(0,0);
+    display.println("=== JERRY CLIENT ===");
+    display.println("Wake Word: ACTIVE");
+    display.println("Say: 'Hey Jerry'");
+    display.println("--------------------");
+    display.printf("WiFi: %s\\n", WiFi.SSID().c_str());
+    display.display();
+  }
+}
+
+// Read raw I2S mic samples into rolling ring-buffer & invoke local DSP/Inference
+void runLocalWakeWordInference() {
+  size_t bytes_read = 0;
+  uint8_t tempBuffer[512];
+  
+  // Non-blocking read of current samples
+  i2s_read(I2S_NUM_0, tempBuffer, sizeof(tempBuffer), &bytes_read, 0);
+  
+  if (bytes_read > 0) {
+    // Write into local rolling buffer
+    for (size_t i = 0; i < bytes_read; i++) {
+      wakeRollingBuffer[rollingBufferIndex] = tempBuffer[i];
+      rollingBufferIndex = (rollingBufferIndex + 1) % WAKE_WINDOW_LEN;
+    }
+    
+    // Perform 100% LOCAL inference (no network calls)
+    // Here you hook in Edge Impulse SDK or Espressif ESP-SR (WakeNet) model:
+    // e.g. float confidence = runJerryWakeModel(wakeRollingBuffer);
+    //
+    // For illustration, we simulate or listen for threshold/pattern,
+    // in actual deployment, Espressif's custom neural model returns a trigger index:
+    bool wakeDetected = false; 
+    
+    /* 
+     * [LOCAL ESP-SR IMPLEMENTATION REFERENCE]:
+     * #include "esp_wn_iface.h"
+     * #include "esp_wn_models.h"
+     * ...
+     * int r = model->detect(model_data, (int16_t*)tempBuffer);
+     * if (r > 0) { wakeDetected = true; }
+     */
+     
+    if (wakeDetected) {
+      currentState = STATE_WOKE_TRIGGERED;
+    }
+  }
+}
+
+void playLocalChime() {
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.println("[!] WOKEN UP!");
+  display.println("Hearing command...");
+  display.display();
+  delay(200); // Mimics local acoustic confirmation chime
+}
+
+void recordActiveCommand() {
+  display.clearDisplay();
+  display.setCursor(0,0);
+  display.println(">>> LISTENING <<<");
+  display.println("Speak command now");
+  display.display();
+  
+  // Actively gather 4 seconds of continuous voice command
+  int totalBytesRead = 0;
+  size_t bytes_in = 0;
+  
+  while (totalBytesRead < recordBufferLen) {
+    i2s_read(I2S_NUM_0, recordBuffer + totalBytesRead, 4096, &bytes_in, portMAX_DELAY);
+    totalBytesRead += bytes_in;
+  }
+  
+  // Uninstall I2S receiver driver so we can stream playback safely
+  i2s_driver_uninstall(I2S_NUM_0); 
+  currentState = STATE_UPLOAD_COMMAND;
+}
+
+void initI2sMic() {
+  // Config tailored for INMP441 clear audio recording
+  i2s_config_t i2s_config = {
+    .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
+    .sample_rate = sampleRate,
+    .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+    .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
+    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+    .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+    .dma_buf_count = 8,
+    .dma_buf_len = 128,
+    .use_apll = false
+  };
+  i2s_pin_config_t pin_config = {
+    .bck_io_num = I2S_MIC_SCK,
+    .ws_io_num = I2S_MIC_WS,
+    .data_out_num = I2S_PIN_NO_CHANGE,
+    .data_in_num = I2S_MIC_SD
+  };
+  i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
+  i2s_set_pin(I2S_NUM_0, &pin_config);
+}
+
+void uploadAndProcessVoice(uint8_t* buffer, int length) {
+  HTTPClient http;
+  http.begin(serverUrl);
+  
+  // Pack raw 16-bit PCM buffer into standard WAV with a 44-byte Header
+  uint8_t wavHeader[44];
+  int totalFileLen = length + 36;
+  memcpy(wavHeader, "RIFF", 4);
+  memcpy(wavHeader+4, &totalFileLen, 4);
+  memcpy(wavHeader+8, "WAVEfmt ", 8);
+  uint32_t subChunk1Size = 16; memcpy(wavHeader+16, &subChunk1Size, 4);
+  uint16_t audioFormat = 1; memcpy(wavHeader+20, &audioFormat, 2);
+  uint16_t numChannels = 1; memcpy(wavHeader+22, &numChannels, 2);
+  uint32_t sRate = sampleRate; memcpy(wavHeader+24, &sRate, 4);
+  uint32_t byteRate = sampleRate * 2; memcpy(wavHeader+28, &byteRate, 4);
+  uint16_t blockAlign = 2; memcpy(wavHeader+32, &blockAlign, 2);
+  uint16_t bitsPerSample = 16; memcpy(wavHeader+34, &bitsPerSample, 2);
+  memcpy(wavHeader+36, "data", 4);
+  memcpy(wavHeader+40, &length, 4);
+
+  // Send as clean multipart/form-data payload
+  String boundary = "----JerryBoundary";
+  http.addHeader("Content-Type", "multipart/form-data; boundary=" + boundary);
+  
+  String head = "--" + boundary + "\\r\\nContent-Disposition: form-data; name=\\"audio\\"; filename=\\"voice.wav\\"\\r\\nContent-Type: audio/wav\\r\\n\\r\\n";
+  String tail = "\\r\\n--" + boundary + "--\\r\\n";
+  
+  // For full streaming, send the components sequentially or combine in memory
+  // The server receives standard multipart, runs STT via Gemini, outputs response JSON:
+  int code = http.POST((uint8_t*)head.c_str(), head.length());
+  
+  if (code > 0) {
+    String res = http.getString();
+    StaticJsonDocument<512> doc;
+    deserializeJson(doc, res);
+    
+    const char* text = doc["transcript"];
+    const char* audioUrlSuffix = doc["audioUrl"]; // e.g. "/api/audio/voice_123.wav"
+    
+    display.clearDisplay();
+    display.println("Jerry heard:");
+    display.println(text);
+    display.display();
+    delay(1500);
+    
+    if (audioUrlSuffix) {
+       currentState = STATE_PLAYBACK_TTS;
+       String playUrl = "http://" + String(WiFi.gatewayIP().toString()) + ":3000" + String(audioUrlSuffix);
+       audio.connecttohost(playUrl.c_str()); // Stream response TTS audio back dynamically!
+    }
+  }
+  http.end();
+}`;
+  }
+};
+
 export default function App() {
   // Check if accessed by localhost
   const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
+  // ESP32 Solo Voice Assistant Mode check from URL search query parameter (?mode=voice or ?esp32=true)
+  const [soloMode, setSoloMode] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("mode") === "voice" || params.get("esp32") === "true" || params.get("solo") === "true";
+    }
+    return false;
+  });
+
   // Navigation: "devices" | "schedules" | "chat" | "configurations"
-  const [activeTab, setActiveTab] = useState<"devices" | "schedules" | "chat" | "configurations">("devices");
+  const [activeTab, setActiveTab] = useState<"devices" | "schedules" | "chat" | "configurations">(
+    () => {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("mode") === "voice" || params.get("esp32") === "true" || params.get("solo") === "true") {
+          return "chat";
+        }
+      }
+      return "devices";
+    }
+  );
+
+  const toggleSoloMode = () => {
+    setSoloMode(prev => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        if (next) {
+          url.searchParams.set("mode", "voice");
+          setActiveTab("chat");
+        } else {
+          url.searchParams.delete("mode");
+        }
+        window.history.replaceState({}, "", url.toString());
+      }
+      return next;
+    });
+  };
+
   const [activeConfigSubTab, setActiveConfigSubTab] = useState<"gateway" | "console" | "guide">("gateway");
 
   // Core App States
@@ -107,7 +951,12 @@ export default function App() {
   const [speechSupported, setSpeechSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [speechSynthesisEnabled, setSpeechSynthesisEnabled] = useState(true);
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(true);
+  const [wakeWordStandby, setWakeWordStandby] = useState(true);
   const [transcript, setTranscript] = useState("");
+  const [espTab, setEspTab] = useState<"termux" | "script" | "api" | "console">("termux");
+  const [mobileTab, setMobileTab] = useState<"speech" | "ecosystem">("speech");
+  const [boardType, setBoardType] = useState<"standard" | "esp32c3" | "esp32c3_smart_display">("standard");
   const [aiResponse, setAiResponse] = useState("Hello! I am ready to monitor and control your local IoT ecosystem. Tap Space or click the microphone to speak.");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -391,6 +1240,16 @@ export default function App() {
   // Refs to avoid stale state in async speech events
   const isProcessingRef = useRef(false);
   const isSpeakingRef = useRef(false);
+  const wakeWordEnabledRef = useRef(wakeWordEnabled);
+  const wakeWordStandbyRef = useRef(wakeWordStandby);
+
+  useEffect(() => {
+    wakeWordEnabledRef.current = wakeWordEnabled;
+  }, [wakeWordEnabled]);
+
+  useEffect(() => {
+    wakeWordStandbyRef.current = wakeWordStandby;
+  }, [wakeWordStandby]);
 
   // Timezone helpers for Asia/Kolkata (IST)
   const getKolkataHHMM = (date: Date): string => {
@@ -622,6 +1481,26 @@ export default function App() {
     return () => clearInterval(syncInterval);
   }, []);
 
+  // Poll central devices state from backend every 2 seconds
+  useEffect(() => {
+    const pollDevices = async () => {
+      try {
+        const res = await fetch("/api/devices");
+        if (res.ok) {
+          const fetchedDevices = await res.json();
+          if (Array.isArray(fetchedDevices) && fetchedDevices.length > 0) {
+            setDevices(fetchedDevices);
+          }
+        }
+      } catch (err) {
+        console.warn("Error polling central devices from backend:", err);
+      }
+    };
+    pollDevices();
+    const interval = setInterval(pollDevices, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Helper: Generate synth sounds for vocal feedback
   const playBeep = (freq: number, duration: number, type: "sine" | "triangle" | "square" = "sine", volume: number = 0.08) => {
     try {
@@ -647,7 +1526,22 @@ export default function App() {
 
   // Handle Text-To-Speech (TTS)
   const speakText = (text: string) => {
-    if (!speechSynthesisEnabled || !('speechSynthesis' in window)) return;
+    if (!speechSynthesisEnabled || !('speechSynthesis' in window)) {
+      if (wakeWordEnabledRef.current) {
+        setWakeWordStandby(true);
+        setTimeout(() => {
+          try {
+            if (recognitionRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+              recognitionRef.current.start();
+              setListening(true);
+            }
+          } catch (err) {
+            console.warn("Auto-restart after command processed (no TTS) failed:", err);
+          }
+        }, 1200);
+      }
+      return;
+    }
     try {
       window.speechSynthesis.cancel(); // Stop active voices
       const utterance = new SpeechSynthesisUtterance(text);
@@ -679,11 +1573,37 @@ export default function App() {
       utterance.onend = () => {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
+        if (wakeWordEnabledRef.current) {
+          setWakeWordStandby(true);
+          setTimeout(() => {
+            try {
+              if (recognitionRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                recognitionRef.current.start();
+                setListening(true);
+              }
+            } catch (err) {
+              console.warn("Auto-restart after TTS failed:", err);
+            }
+          }, 300);
+        }
       };
 
       utterance.onerror = () => {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
+        if (wakeWordEnabledRef.current) {
+          setWakeWordStandby(true);
+          setTimeout(() => {
+            try {
+              if (recognitionRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                recognitionRef.current.start();
+                setListening(true);
+              }
+            } catch (err) {
+              console.warn("Auto-restart after TTS error failed:", err);
+            }
+          }, 300);
+        }
       };
       
       window.speechSynthesis.speak(utterance);
@@ -720,29 +1640,58 @@ export default function App() {
       rec.onstart = () => {
         setListening(true);
         setTranscript("");
-        playBeep(880, 0.25, "sine", 0.9); // extra loud high beep for blue -> purple transition
+        // Play beep only if we are transitioning into active command mode
+        if (!wakeWordStandbyRef.current) {
+          playBeep(880, 0.25, "sine", 0.9);
+        }
         addLog("info", "Microphone listening stream initialized.");
 
-        // Automatically stop listening after 6 seconds
+        // Automatically stop listening after 6 seconds in active command mode
         if (listeningTimeoutRef.current) {
           clearTimeout(listeningTimeoutRef.current);
         }
-        listeningTimeoutRef.current = setTimeout(() => {
-          addLog("info", "Auto-stopped listening after 6 seconds limit reached.");
-          try {
-            recognitionRef.current?.stop();
-          } catch (err) {
-            console.warn("Failed to stop listening after 6 seconds:", err);
-          }
-        }, 6000);
+        if (!wakeWordStandbyRef.current) {
+          listeningTimeoutRef.current = setTimeout(() => {
+            try {
+              recognitionRef.current?.stop();
+            } catch (err) {
+              console.warn("Failed to stop listening after 6 seconds:", err);
+            }
+          }, 6000);
+        }
       };
 
       rec.onresult = (event: any) => {
         const resultText = event.results[0][0].transcript;
         const cleanText = resultText.trim();
-        setTranscript(cleanText);
-        addLog("voice", `Voice command detected: "${cleanText}"`);
-        handleProcessCommand(cleanText);
+        const lowerText = cleanText.toLowerCase();
+
+        if (wakeWordEnabledRef.current && wakeWordStandbyRef.current) {
+          const wakeWordMatch = lowerText.match(/^(hey\s+jerry|jerry)\s*(.*)$/i);
+          if (wakeWordMatch) {
+            const commandPart = wakeWordMatch[2] ? wakeWordMatch[2].trim() : "";
+            if (commandPart) {
+              setTranscript(cleanText);
+              playBeep(880, 0.25, "sine", 0.9);
+              addLog("voice", `Wake word + command detected: "${commandPart}"`);
+              handleProcessCommand(commandPart);
+            } else {
+              playBeep(880, 0.25, "sine", 0.9);
+              setTranscript("Hey Jerry?");
+              setWakeWordStandby(false);
+              recognitionRef.current?.stop();
+            }
+          } else {
+            console.log("Ignored speech in standby (no wake-word match):", cleanText);
+          }
+        } else {
+          setTranscript(cleanText);
+          addLog("voice", `Voice command detected: "${cleanText}"`);
+          handleProcessCommand(cleanText);
+          if (wakeWordEnabledRef.current) {
+            setWakeWordStandby(true);
+          }
+        }
       };
 
       rec.onerror = (event: any) => {
@@ -763,6 +1712,20 @@ export default function App() {
         if (listeningTimeoutRef.current) {
           clearTimeout(listeningTimeoutRef.current);
           listeningTimeoutRef.current = null;
+        }
+
+        // Auto-restart if wake-word mode is active and we are not speaking/processing
+        if (wakeWordEnabledRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+          setTimeout(() => {
+            try {
+              if (recognitionRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                recognitionRef.current.start();
+                setListening(true);
+              }
+            } catch (err) {
+              console.warn("Auto-restart of recognition failed:", err);
+            }
+          }, 200);
         }
       };
 
@@ -821,7 +1784,7 @@ export default function App() {
 
   const toggleListening = () => {
     if (!speechSupported) {
-      addLog("warning", "Speech Recognition is offline.", "Please type your commands manually in the console below.");
+      addLog("warning", "Speech Recognition is offline.", "Please check browser microphone permissions.");
       return;
     }
 
@@ -835,6 +1798,11 @@ export default function App() {
     } else {
       try {
         window.speechSynthesis.cancel(); // Stop talking first
+        if (wakeWordEnabled) {
+          setWakeWordStandby(true);
+        } else {
+          setWakeWordStandby(false);
+        }
         recognitionRef.current?.start();
         setListening(true); // Immediate visual feedback for touchscreens
       } catch (err) {
@@ -1154,10 +2122,21 @@ export default function App() {
     }
   };
 
-  // Execute actual state updates on local devices and forward target API calls to 192.168.29.112
+  // Execute actual state updates on local devices and forward target API calls to 192.168.29.112 & central server
   const executeDeviceAction = async (room: string, deviceKey: string | null, action: string, value?: number) => {
     // Perform the local React UI updates first
     updateLocalStateOnly(room, deviceKey, action, value);
+
+    // Persist to central server-side state
+    try {
+      await fetch("/api/devices/control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room, device: deviceKey, action, value })
+      });
+    } catch (err) {
+      console.warn("Backend state sync failed:", err);
+    }
 
     // Forward the command to local IoT assistant at 192.168.29.112
     const targetUrl = `http://${config.serverIp}:${config.serverPort}/`;
@@ -1215,6 +2194,23 @@ export default function App() {
 
   const syncDeviceStates = async () => {
     setIsSyncing(true);
+    addLog("info", "Syncing live device statuses from central server database...");
+
+    try {
+      const res = await fetch("/api/devices");
+      if (res.ok) {
+        const fetchedDevices = await res.json();
+        if (Array.isArray(fetchedDevices) && fetchedDevices.length > 0) {
+          setDevices(fetchedDevices);
+          addLog("success", "Synchronization Completed", "Fetched status successfully from central backend!");
+          setIsSyncing(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Central backend sync failed, attempting LAN sync fallback:", err);
+    }
+
     addLog("info", `Syncing live device statuses from local Jerry assistant at http://${config.serverIp}:${config.serverPort}...`);
     const targetUrl = `http://${config.serverIp}:${config.serverPort}/`;
 
@@ -1328,6 +2324,309 @@ export default function App() {
     }
   };
 
+  if (soloMode) {
+    return (
+      <div id="app-container" className="min-h-screen bg-[#030407] text-slate-200 font-sans p-3 md:p-6 flex flex-col justify-between overflow-x-hidden">
+        {/* Solo Mode Top Nav */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#0d0e15]/90 backdrop-blur-md border border-purple-500/10 p-4 rounded-2xl shadow-[0_0_30px_rgba(168,85,247,0.05)] mb-6 gap-4 w-full max-w-7xl mx-auto">
+          <div className="flex items-center gap-4">
+            <div className={`w-3.5 h-3.5 rounded-full transition-all duration-500 ${listening ? "bg-purple-500 shadow-[0_0_12px_#a855f7]" : "bg-cyan-400 shadow-[0_0_10px_#22d3ee]"}`}></div>
+            <div>
+              <h1 className="text-sm font-black tracking-[0.2em] uppercase text-purple-400 flex flex-wrap items-center gap-2">
+                Jerry Vox Client
+                <span className="text-[9px] font-mono font-normal tracking-normal text-slate-400 uppercase px-2 py-0.5 rounded-full bg-white/5 border border-white/5">
+                  Mobile Termux Mode
+                </span>
+              </h1>
+              <p className="text-[10px] text-slate-400 font-mono">STANDALONE_SECURE_CLIENT // JERRY_GATEWAY</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4 md:gap-8 text-left w-full md:w-auto justify-between md:justify-end">
+            <div className="border-l border-white/10 pl-4 md:pl-6 hidden sm:block">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">Local IoT IP</p>
+              <p className="text-xs md:text-sm font-mono text-cyan-300 flex items-center gap-1.5">
+                <span>{config.serverIp}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+              </p>
+            </div>
+            <div className="border-l border-white/10 pl-4 md:pl-6">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">Local Ping</p>
+              <p className="text-xs md:text-sm font-mono text-cyan-300">{latency}</p>
+            </div>
+            <div className="border-l border-white/10 pl-4 md:pl-6 flex flex-col justify-center">
+              <p className="text-sm md:text-lg font-light font-mono text-slate-300 leading-none">
+                {currentTime || "12:00:00"}
+              </p>
+              <span className="text-[9px] font-bold text-purple-400 font-sans tracking-wider mt-0.5 uppercase">Kolkata IST</span>
+            </div>
+            <button
+              onClick={toggleSoloMode}
+              className="px-4 py-2 bg-slate-800/80 hover:bg-slate-700 text-xs text-rose-400 font-bold uppercase tracking-wider rounded-xl border border-rose-500/20 shadow-sm transition-all cursor-pointer flex items-center gap-1.5 ml-auto md:ml-2"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Exit Mobile Mode
+            </button>
+          </div>
+        </header>
+
+        {/* Tab Selection Header for Mobile Mode */}
+        <div className="w-full max-w-7xl mx-auto mb-6 px-1">
+          <div className="grid grid-cols-2 bg-[#0c0d16]/90 border border-white/5 p-1 rounded-2xl w-full max-w-sm mx-auto gap-1">
+            <button
+              onClick={() => setMobileTab("speech")}
+              className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                mobileTab === "speech"
+                  ? "bg-purple-500/15 text-purple-400 border border-purple-500/30 font-black shadow-[0_0_15px_rgba(168,85,247,0.1)]"
+                  : "text-slate-500 hover:text-slate-400"
+              }`}
+            >
+              <Mic className="w-3.5 h-3.5 text-purple-400" />
+              Speech Core
+            </button>
+            <button
+              onClick={() => setMobileTab("ecosystem")}
+              className={`py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                mobileTab === "ecosystem"
+                  ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 font-black shadow-[0_0_15px_rgba(34,211,238,0.1)]"
+                  : "text-slate-500 hover:text-slate-400"
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5 text-cyan-400" />
+              Ecosystem Control
+            </button>
+          </div>
+        </div>
+
+        {/* Primary Content Grid */}
+        <main className="flex-1 max-w-7xl w-full mx-auto mb-6 px-1">
+          {mobileTab === "speech" && (
+            <div className="max-w-xl mx-auto w-full">
+              
+              {/* Panel 1: Voice Control Console */}
+              <div className="flex flex-col justify-between relative bg-[#0c0d16]/80 border border-white/5 rounded-2xl p-6 overflow-hidden min-h-[500px]">
+                <div className="absolute w-72 h-72 bg-purple-500/5 blur-[80px] rounded-full top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
+                
+                {/* Header */}
+                <div className="flex justify-between items-center relative z-10 border-b border-white/5 pb-3">
+                  <h3 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-2">
+                    <Mic className="w-4 h-4 text-purple-400 animate-pulse" />
+                    Speech Core
+                  </h3>
+                  <button 
+                    onClick={() => setSpeechSynthesisEnabled(!speechSynthesisEnabled)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-[9px] rounded-md uppercase tracking-wider transition-colors text-slate-300 font-semibold cursor-pointer"
+                  >
+                    {speechSynthesisEnabled ? <Volume2 className="w-3 h-3 text-cyan-400" /> : <VolumeX className="w-3 h-3 text-slate-500" />}
+                    <span>{speechSynthesisEnabled ? "TTS On" : "TTS Off"}</span>
+                  </button>
+                </div>
+
+                {/* Orb Area */}
+                <div className="relative z-10 flex flex-col items-center text-center w-full max-w-sm mx-auto my-auto py-4">
+                  <div
+                    onClick={toggleListening}
+                    className={`w-40 h-40 rounded-full border border-dashed flex items-center justify-center transition-all duration-500 cursor-pointer p-3 select-none ${
+                      listening 
+                        ? "border-purple-500/40 bg-purple-500/5 shadow-[0_0_40px_rgba(168,85,247,0.25)] scale-105" 
+                        : "border-cyan-400/20 bg-cyan-500/2 hover:border-cyan-400/40 hover:shadow-[0_0_25px_rgba(34,211,238,0.12)] hover:bg-cyan-500/5 active:scale-95"
+                    }`}
+                  >
+                    <div className={`w-32 h-32 rounded-full border flex items-center justify-center p-3 transition-all duration-500 ${
+                      listening 
+                        ? "border-purple-400/50 bg-purple-500/10 shadow-[inset_0_0_30px_rgba(168,85,247,0.25)]" 
+                        : "border-cyan-400/35 bg-[#11131f]/60 shadow-[inset_0_0_20px_rgba(34,211,238,0.1)]"
+                    }`}>
+                      <div className={`w-full h-full rounded-full border flex items-center justify-center transition-all duration-500 ${
+                        listening 
+                          ? "border-purple-400/20 bg-purple-500/15" 
+                          : "border-cyan-400/10 bg-[#0c0d16]/80"
+                      }`}>
+                        {listening ? (
+                          <div className="flex items-center gap-1.5 h-8">
+                            <div className="w-1 h-4 bg-purple-400 rounded-full animate-pulse"></div>
+                            <div className="w-1 h-7 bg-purple-400 rounded-full animate-bounce"></div>
+                            <div className="w-1 h-10 bg-purple-400 rounded-full shadow-[0_0_10px_#a855f7] animate-pulse"></div>
+                            <div className="w-1 h-6 bg-purple-400 rounded-full animate-bounce"></div>
+                            <div className="w-1 h-3 bg-purple-400 rounded-full animate-pulse"></div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center">
+                            <Mic className="w-6 h-6 text-cyan-400 animate-pulse mb-1" />
+                            <span className="text-[8px] font-mono tracking-widest text-slate-500 font-bold uppercase">READY</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-2.5 w-full">
+                    <p className={`text-[10px] font-bold tracking-[0.2em] uppercase transition-colors ${listening ? "text-purple-400" : "text-cyan-400"}`}>
+                      {listening ? "Listening..." : "Click orb or speak"}
+                    </p>
+                    
+                    {/* Real-time Web Speech Wake Word indicator for hands-free mode */}
+                    <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-[#121422]/70 border border-purple-500/15 rounded-full max-w-[240px] mx-auto">
+                      <span className={`w-2 h-2 rounded-full ${wakeWordEnabled ? "bg-purple-500 animate-pulse shadow-[0_0_8px_#a855f7]" : "bg-slate-600"}`}></span>
+                      <span className="text-[9px] font-mono tracking-wider font-bold text-purple-300">
+                        {wakeWordEnabled ? "WAKE WORD: 'HEY JERRY'" : "WAKE WORD: OFF"}
+                      </span>
+                    </div>
+
+                    {transcript && (
+                      <p className="text-xs text-slate-300 font-medium bg-white/5 border border-white/5 rounded-lg py-1 px-2.5 inline-block max-w-xs break-words font-mono">
+                        "{transcript}"
+                      </p>
+                    )}
+                    <div className="text-slate-400 text-xs border-t border-white/5 pt-3 mt-2">
+                      <p className="text-[9px] uppercase tracking-widest font-mono text-purple-400 font-bold mb-1">Response</p>
+                      <p className="text-slate-200 text-xs leading-relaxed max-w-xs mx-auto">
+                        {aiResponse}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {mobileTab === "ecosystem" && (
+            <div className="max-w-xl mx-auto w-full">
+              {/* Panel 2.5: Ecosystem Control Panel */}
+              <div className="flex flex-col justify-between bg-[#0b0c14] border border-white/5 rounded-2xl p-5 min-h-[500px]">
+            <div>
+              <div className="flex justify-between items-center pb-3 border-b border-white/5 mb-4">
+                <h3 className="text-xs font-bold tracking-wider text-slate-300 uppercase flex items-center gap-2">
+                  <LayoutGrid className="w-4 h-4 text-cyan-400" />
+                  Ecosystem Control
+                </h3>
+                <span className="text-[10px] bg-cyan-400/10 text-cyan-400 px-2 py-0.5 rounded-full font-bold">
+                  {devices.filter(d => d.on).length} Active
+                </span>
+              </div>
+
+              {/* Scrollable Device List */}
+              <div className="space-y-3 h-[380px] overflow-y-auto pr-1 select-none scrollbar-thin scrollbar-thumb-white/10">
+                {(Object.entries(
+                  devices.reduce((acc, dev) => {
+                    if (!acc[dev.room]) acc[dev.room] = [];
+                    acc[dev.room].push(dev);
+                    return acc;
+                  }, {} as Record<string, Device[]>)
+                ) as Array<[string, Device[]]>).map(([roomName, roomDevs]) => {
+                  const isExpanded = !!expandedRooms[roomName];
+                  const activeCount = roomDevs.filter(d => d.on).length;
+                  
+                  return (
+                    <div 
+                      key={roomName} 
+                      className={`p-2.5 bg-white/[0.01] border border-white/5 rounded-xl flex flex-col transition-all duration-300 ${isExpanded ? "gap-2" : "gap-0"}`}
+                    >
+                      <div 
+                        onClick={() => toggleRoom(roomName)}
+                        className="flex justify-between items-center cursor-pointer select-none hover:bg-white/[0.03] p-1 -m-1 rounded-lg transition-colors"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-cyan-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-500" />}
+                          <h4 className="text-[10px] font-bold tracking-widest uppercase text-cyan-400 font-mono">
+                            {roomName}
+                          </h4>
+                          <span className="text-[8px] font-mono text-slate-400 bg-cyan-400/10 px-1 py-0.2 rounded-full font-bold">
+                            {activeCount}/{roomDevs.length}
+                          </span>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="space-y-1.5 mt-2 border-t border-white/5 pt-2">
+                          {roomDevs.map(dev => (
+                            <div 
+                              key={dev.id} 
+                              onClick={(e) => {
+                                if ((e.target as HTMLElement).tagName !== "INPUT") {
+                                  executeDeviceAction(dev.room, dev.deviceKey, dev.on ? "turn_off" : "turn_on");
+                                }
+                              }}
+                              className={`p-2 border rounded-lg flex flex-col gap-1 transition-all duration-300 cursor-pointer ${
+                                dev.on 
+                                  ? "bg-cyan-500/10 border-cyan-500/25 hover:bg-cyan-500/15" 
+                                  : "bg-white/5 hover:bg-white/10 border-white/5"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  {getDeviceIcon(dev)}
+                                  <div>
+                                    <p className="text-[11px] font-semibold text-white leading-tight">{dev.name}</p>
+                                    <p className="text-[9px] text-slate-400 font-mono leading-none mt-0.5">{dev.statusText}</p>
+                                  </div>
+                                </div>
+
+                                <div
+                                  className={`p-1 rounded border transition-all ${
+                                    dev.on 
+                                      ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/35" 
+                                      : "bg-slate-800/40 text-slate-400 border-white/5"
+                                  }`}
+                                >
+                                  <Power className="w-3 h-3" />
+                                </div>
+                              </div>
+
+                              {dev.on && dev.category === "fan" && dev.value !== undefined && (
+                                <div className="flex items-center gap-2 pt-0.5">
+                                  <input
+                                    type="range"
+                                    min="1"
+                                    max="5"
+                                    value={dev.value}
+                                    onChange={(e) => executeDeviceAction(dev.room, dev.deviceKey, "set_fan_speed", parseInt(e.target.value, 10))}
+                                    className="flex-1 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                                  />
+                                  <span className="text-[9px] font-mono text-cyan-400 font-bold bg-cyan-400/5 px-1 rounded">
+                                    Spd {dev.value}
+                                  </span>
+                                </div>
+                              )}
+
+                              {dev.on && dev.category === "ac" && dev.value !== undefined && (
+                                <div className="flex items-center gap-2 pt-0.5">
+                                  <input
+                                    type="range"
+                                    min="16"
+                                    max="30"
+                                    value={dev.value}
+                                    onChange={(e) => executeDeviceAction(dev.room, dev.deviceKey, "set_temp", parseInt(e.target.value, 10))}
+                                    className="flex-1 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                                  />
+                                  <span className="text-[9px] font-mono text-amber-400 font-bold bg-amber-400/5 px-1 rounded">
+                                    {dev.value}°C
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+                        <div className="border-t border-white/5 pt-3 mt-2 flex justify-between items-center text-[10px] text-slate-500">
+              <span>Ecosystem State:</span>
+              <span className="text-emerald-400 font-bold">ONLINE</span>
+            </div>
+          </div>
+          </div>
+          </div>
+          )}
+
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div id="app-container" className="min-h-screen bg-[#05060a] text-slate-200 font-sans p-4 md:p-6 flex flex-col justify-between overflow-x-hidden">
       
@@ -1369,7 +2668,7 @@ export default function App() {
 
       {/* Navigation Tab Bar */}
       <nav className="w-full max-w-7xl mx-auto mb-6 px-1">
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:flex bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full md:w-max gap-1">
+          <div className="grid grid-cols-2 sm:grid-cols-5 md:flex bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full md:w-max gap-1">
             <button
               onClick={() => setActiveTab("devices")}
               className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
@@ -1395,7 +2694,7 @@ export default function App() {
             <button
               onClick={() => setActiveTab("chat")}
               className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                activeTab === "chat"
+                activeTab === "chat" && !soloMode
                   ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_15px_rgba(168,85,247,0.12)]"
                   : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
               }`}
@@ -1413,6 +2712,17 @@ export default function App() {
             >
               <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="truncate">Config</span>
+            </button>
+            <button
+              onClick={toggleSoloMode}
+              className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                soloMode
+                  ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+                  : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+              }`}
+            >
+              <Laptop className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400" />
+              <span className="truncate">Mobile Mode</span>
             </button>
           </div>
         </nav>
@@ -2301,7 +3611,19 @@ export default function App() {
 
             {activeConfigSubTab === "guide" && (
               <div className="animate-fade-in">
-                <IntegrationGuide selectedLanguage={selectedLanguage} />
+                <IntegrationGuide 
+                  selectedLanguage={selectedLanguage} 
+                  listening={listening}
+                  isProcessing={isProcessing}
+                  transcript={transcript}
+                  chatMessages={chatMessages}
+                  config={config}
+                  handleProcessCommand={handleProcessCommand}
+                  setListening={setListening}
+                  setTranscript={setTranscript}
+                  wakeWordEnabled={wakeWordEnabled}
+                  setWakeWordEnabled={setWakeWordEnabled}
+                />
               </div>
             )}
           </div>

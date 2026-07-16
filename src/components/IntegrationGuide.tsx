@@ -1,8 +1,44 @@
-import { useState } from "react";
-import { Terminal, Copy, Check, Info, Shield, Network, Cpu } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Terminal, Copy, Check, Info, Shield, Network, Cpu, Smartphone, Wifi, Zap, Send, Mic, Volume2, VolumeX, Settings, HelpCircle, CheckCircle2 } from "lucide-react";
 
-export default function IntegrationGuide({ selectedLanguage = "en-US" }: { selectedLanguage?: string }) {
+interface IntegrationGuideProps {
+  selectedLanguage?: string;
+  listening?: boolean;
+  isProcessing?: boolean;
+  transcript?: string;
+  chatMessages?: Array<{ id: string; sender: string; text: string; timestamp: string }>;
+  config?: { serverIp: string; serverPort: string };
+  handleProcessCommand?: (text: string) => Promise<void> | void;
+  setListening?: (val: boolean) => void;
+  setTranscript?: (val: string) => void;
+  wakeWordEnabled?: boolean;
+  setWakeWordEnabled?: (val: boolean) => void;
+}
+
+export default function IntegrationGuide({ 
+  selectedLanguage = "en-US",
+  listening = false,
+  isProcessing = false,
+  transcript = "",
+  chatMessages = [],
+  config = { serverIp: "127.0.0.1", serverPort: "8000" },
+  handleProcessCommand,
+  setListening,
+  setTranscript,
+  wakeWordEnabled = true,
+  setWakeWordEnabled
+}: IntegrationGuideProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [espTab, setEspTab] = useState<"termux" | "script" | "console" | "api">("termux");
+  const [currentTime, setCurrentTime] = useState("");
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const copyToClipboard = (text: string, index: number) => {
     navigator.clipboard.writeText(text);
@@ -637,6 +673,267 @@ echo "Turned on kitchen lights" | piper \\
   --model ${currentPiper.model} \\
   --output_file response.wav`}
               </pre>
+            </div>
+          </div>
+        </div>
+
+        {/* Step 5: Android Termux Client */}
+        <div className="bg-[#161a22] border border-[#1e222b] rounded-xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="w-6 h-6 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-mono flex items-center justify-center font-bold">5</span>
+              <h3 className="text-sm font-semibold text-white">Android Termux Voice & Control Client</h3>
+            </div>
+            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-400 font-bold">Mobile Voice</span>
+          </div>
+          <p className="text-xs text-gray-400 leading-relaxed font-sans">
+            Run a zero-dependency console client on your Android phone using Termux! It captures mic audio natively (via SoX or the Termux API package), sends commands directly to this server, updates the central dashboard state instantly, and plays back the vocal assistant responses out of your phone speaker.
+          </p>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
+            {/* Install instructions - 5 cols */}
+            <div className="lg:col-span-5 space-y-4">
+              <div>
+                <p className="text-[11px] font-bold text-slate-300">1. Install Node and utilities in Termux:</p>
+                <div className="relative">
+                  <pre className="text-[10px] font-mono p-3 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-yellow-300 overflow-x-auto whitespace-pre leading-relaxed">
+{`pkg update && pkg install nodejs sox termux-api mpv -y`}
+                  </pre>
+                  <button
+                    onClick={() => copyToClipboard(`pkg update && pkg install nodejs sox termux-api mpv -y`, 51)}
+                    className="absolute top-2 right-2 p-1 rounded bg-[#161a22] hover:bg-[#1f2633] text-gray-400 hover:text-white transition-colors border border-[#1e222b]"
+                    title="Copy command"
+                  >
+                    {copiedIndex === 51 ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-bold text-slate-300">2. Download the customized client script:</p>
+                <div className="relative">
+                  <pre className="text-[10px] font-mono p-3 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-cyan-300 overflow-x-auto whitespace-pre leading-relaxed">
+{`curl -sLO ${typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/termux-client.js`}
+                  </pre>
+                  <button
+                    onClick={() => copyToClipboard(`curl -sLO ${typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/termux-client.js`, 52)}
+                    className="absolute top-2 right-2 p-1 rounded bg-[#161a22] hover:bg-[#1f2633] text-gray-400 hover:text-white transition-colors border border-[#1e222b]"
+                    title="Copy download script"
+                  >
+                    {copiedIndex === 52 ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-bold text-slate-300">3. Execute and Start Interacting:</p>
+                <div className="relative">
+                  <pre className="text-[10px] font-mono p-3 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-green-300 overflow-x-auto whitespace-pre leading-relaxed">
+{`node termux-client.js`}
+                  </pre>
+                  <button
+                    onClick={() => copyToClipboard(`node termux-client.js`, 53)}
+                    className="absolute top-2 right-2 p-1 rounded bg-[#161a22] hover:bg-[#1f2633] text-gray-400 hover:text-white transition-colors border border-[#1e222b]"
+                    title="Copy run script"
+                  >
+                    {copiedIndex === 53 ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Simulated Interactive Mobile Client - 7 cols */}
+            <div className="lg:col-span-7 bg-[#0b0c10]/90 border border-[#1e222b] rounded-2xl p-5 flex flex-col justify-between min-h-[480px]">
+              <div>
+                <div className="flex items-center justify-between border-b border-[#1e222b] pb-2.5 mb-4">
+                  <div className="flex items-center space-x-2">
+                    <Smartphone className="w-4 h-4 text-cyan-400" />
+                    <span className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">Interactive Developer Simulator</span>
+                  </div>
+                  <span className="text-[8px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">Simulator Connected</span>
+                </div>
+
+                {/* Wake Word Selector Inside Setup Guide */}
+                <div className="flex items-center justify-between bg-[#11131f]/60 p-2.5 rounded-xl border border-white/5 mb-4">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-300 font-mono">Standby Wake-Word Trigger</span>
+                    <span className="text-[8px] text-slate-500 font-mono">Auto-starts capturing on "Hey Jerry" or "Jerry"</span>
+                  </div>
+                  <button
+                    onClick={() => setWakeWordEnabled && setWakeWordEnabled(!wakeWordEnabled)}
+                    className={`px-3 py-1.5 text-[9px] rounded-lg uppercase tracking-wider font-bold border transition-colors cursor-pointer ${
+                      wakeWordEnabled
+                        ? "bg-purple-500/15 text-purple-400 border-purple-500/25 shadow-sm"
+                        : "bg-slate-800 text-slate-500 border-white/5"
+                    }`}
+                  >
+                    {wakeWordEnabled ? "Wake-Word: ON" : "Wake-Word: OFF"}
+                  </button>
+                </div>
+
+                {/* Simulated Android Screen */}
+                <div className="relative mx-auto bg-[#1a1b26] p-3 rounded-[28px] border-4 border-slate-700 shadow-xl mb-4 max-w-[270px] overflow-hidden">
+                  <div className="absolute top-0.5 left-1/2 -translate-x-1/2 h-4 w-28 bg-[#1a1b26] rounded-b-xl z-20 flex items-center justify-center gap-1.5">
+                    <div className="w-1 h-1 rounded-full bg-slate-800"></div>
+                    <div className="w-6 h-0.5 bg-slate-800 rounded-full"></div>
+                  </div>
+
+                  <div className="bg-black border border-slate-900 rounded-[20px] p-3 pt-5 font-mono text-[#4ade80] shadow-inner relative h-[140px] flex flex-col justify-between select-none">
+                    <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/5 to-white/10 pointer-events-none rounded-[20px]"></div>
+                    
+                    <div className="flex justify-between items-center text-[8px] font-bold text-slate-400 border-b border-slate-800/60 pb-1 z-10">
+                      <span className="flex items-center gap-1">
+                        <Wifi className="w-2.5 h-2.5 text-emerald-400 animate-pulse" />
+                        Termux Active
+                      </span>
+                      <span className="text-[8px] tracking-wide text-slate-300">{currentTime || "12:00:00"}</span>
+                    </div>
+
+                    <div className="flex-1 flex flex-col justify-center py-2 text-[9px] leading-tight space-y-1.5 z-10">
+                      {listening ? (
+                        <div className="space-y-1.5">
+                          <div className="text-purple-400 font-extrabold tracking-wide flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-ping"></span>
+                            pkg:~ $ termux-mic-rec
+                          </div>
+                          <div className="text-purple-300/90 italic text-[9px] truncate">
+                            {transcript ? `"${transcript}"` : "Recording mobile mic..."}
+                          </div>
+                          <div className="text-[8px] text-purple-400">▂▃▅▆▇▆▅▃▂</div>
+                        </div>
+                      ) : isProcessing ? (
+                        <div className="space-y-1.5">
+                          <div className="text-cyan-400 font-extrabold tracking-wide flex items-center gap-1.5 animate-pulse">
+                            <span>$ node termux-client.js --send</span>
+                          </div>
+                          <div className="text-cyan-300 text-[8px]">Uploading payload to Jerry Gateway...</div>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="text-emerald-400 font-bold tracking-wide flex items-center gap-1">
+                            <span>$ termux-api active</span>
+                          </div>
+                          <div className="text-[8px] text-slate-400 flex flex-col gap-0.5 mt-0.5">
+                            <div>Srv: {config.serverIp}:{config.serverPort}</div>
+                            <div className="text-emerald-500/80">Press Space or say "Hey Jerry"</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="w-12 h-0.5 bg-slate-700/60 rounded-full mx-auto mt-0.5 z-10"></div>
+                  </div>
+                </div>
+
+                {/* Sub Tab selection inside developer center */}
+                <div className="flex border-b border-[#1e222b] mb-3 overflow-x-auto scrollbar-none gap-1">
+                  {(["termux", "script", "console", "api"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setEspTab(tab)}
+                      className={`px-3 py-1.5 text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                        espTab === tab
+                          ? "text-cyan-400 border-b-2 border-cyan-400 pb-1"
+                          : "text-slate-500 hover:text-slate-300"
+                      }`}
+                    >
+                      {tab === "termux" ? "Termux Setup" : tab === "script" ? "Client Code" : tab === "console" ? "Console Logs" : "API Spec"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Sub Tab Contents */}
+                <div className="text-xs text-slate-400 space-y-2 h-[130px] overflow-y-auto pr-1 select-text scrollbar-thin scrollbar-thumb-white/10">
+                  {espTab === "termux" && (
+                    <div className="space-y-2 py-1 animate-fade-in">
+                      <p className="leading-relaxed text-[11px] text-slate-400">
+                        Zero-dependency Node client with instant local network synchronization.
+                      </p>
+                      <div className="bg-[#0b0c10]/80 p-2.5 rounded-xl border border-white/5 space-y-1">
+                        <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest font-bold block">Local Server Hook URL:</span>
+                        <code className="text-cyan-400 text-[10px] font-mono bg-black/40 px-1.5 py-0.5 rounded">
+                          {typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}
+                        </code>
+                      </div>
+                    </div>
+                  )}
+
+                  {espTab === "script" && (
+                    <div className="relative animate-fade-in space-y-1.5">
+                      <pre className="text-[9px] font-mono leading-normal bg-[#0b0c10]/80 border border-white/5 p-2 rounded-lg h-[115px] overflow-auto text-cyan-200">
+{`#!/usr/bin/env node
+const { execSync } = require('child_process');
+const fs = require('fs');
+
+let SERVER_URL = '${typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}';
+
+function recordVoice() {
+  console.log("🎙️ Recording voice...");
+  execSync('termux-microphone-record -f voice.wav -l 4');
+  
+  console.log("⚡ Uploading voice to Jerry...");
+  // POST binary voice.wav to SERVER_URL/api/parse-audio
+}`}
+                      </pre>
+                    </div>
+                  )}
+
+                  {espTab === "console" && (
+                    <div className="space-y-2 py-1 animate-fade-in font-mono text-[10px]">
+                      <div className="bg-[#0b0c10]/80 border border-white/5 p-2.5 rounded-lg text-slate-300 h-[115px] overflow-y-auto space-y-1.5 scrollbar-thin">
+                        <div><span className="text-purple-400">~/termux $</span> node termux-client.js</div>
+                        <div><span className="text-slate-500">[Connected]</span> to voice bridge</div>
+                        <div><span className="text-slate-500">[Mic status]</span> <span className="text-emerald-400">termux-api mic OK</span></div>
+                        {chatMessages && chatMessages.slice(-2).map((m, idx) => (
+                          <div key={idx} className="text-[9px]">
+                            <span className="text-slate-500">[{m.timestamp}]</span>{" "}
+                            {m.sender === "user" ? (
+                              <span className="text-yellow-400">CLI_OUT: Send Command "{m.text}"</span>
+                            ) : (
+                              <span className="text-cyan-300">CLI_IN: Play Response "{m.text.substring(0, 30)}..."</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {espTab === "api" && (
+                    <div className="space-y-2 py-1 font-mono text-[9px] animate-fade-in">
+                      <div className="bg-[#0b0c10]/80 border border-[#1e222b] p-2.5 rounded-lg text-yellow-400 select-all">
+                        POST /api/parse-audio
+                      </div>
+                      <p className="text-slate-500 text-[8px] leading-relaxed">
+                        Accepts multipart forms. Field <span className="text-cyan-300">"audio"</span> contains the WAV binary. Audio feedback is returned as Base64.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Simulation Quick triggers */}
+              <div className="border-t border-[#1e222b] pt-4 flex flex-col sm:flex-row gap-2.5">
+                <button 
+                  onClick={() => {
+                    if (setTranscript) setTranscript("");
+                    if (setListening) setListening(true);
+                  }}
+                  className="flex-1 py-2 bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 font-bold uppercase tracking-wider rounded-xl border border-purple-500/20 transition-all text-center text-[10px] cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Zap className="w-3.5 h-3.5 text-purple-400" />
+                  Simulate Termux Voice Capture
+                </button>
+                <button 
+                  onClick={() => {
+                    if (setTranscript) setTranscript("turn on ambient light");
+                    if (handleProcessCommand) handleProcessCommand("turn on ambient light");
+                  }}
+                  className="flex-1 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 font-bold uppercase tracking-wider rounded-xl border border-cyan-500/10 transition-all text-center text-[10px] cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Simulate Termux Shell Send
+                </button>
+              </div>
             </div>
           </div>
         </div>

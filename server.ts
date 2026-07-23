@@ -270,6 +270,16 @@ app.post("/api/devices/control", (req, res) => {
   res.json({ success: true, device: updatedDev || null });
 });
 
+// POST /api/devices/sync-all - Replace all device states with synchronized array from target
+app.post("/api/devices/sync-all", (req, res) => {
+  const { devices: newDevices } = req.body;
+  if (Array.isArray(newDevices) && newDevices.length > 0) {
+    devices = newDevices;
+    return res.json({ success: true, count: devices.length });
+  }
+  return res.status(400).json({ error: "Invalid devices payload" });
+});
+
 // GET /termux-client.js - Dynamically compiled & pre-configured console client downloader
 app.get("/termux-client.js", (req, res) => {
   const filePath = path.join(process.cwd(), "termux-client.js");

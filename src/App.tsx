@@ -964,6 +964,26 @@ export default function App() {
   const [latency, setLatency] = useState("4.2ms");
   const [currentTime, setCurrentTime] = useState("");
   const [selectedLanguage, setSelectedLanguage] = useState("en-IN");
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+
+  // User stopped speech recognition ref (prevents auto-restart when user manually clicks orb to stop)
+  const userStoppedRef = useRef<boolean>(false);
+
+  // Mobile Device Detection Effect
+  useEffect(() => {
+    const checkIsMobile = () => {
+      const ua = navigator.userAgent || navigator.vendor || (window as any).opera || "";
+      const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(ua);
+      const isSmallScreen = window.innerWidth <= 768;
+      const hasTouch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+      const queryParamMobile = new URLSearchParams(window.location.search).has("mobile");
+      setIsMobile(isMobileUA || (isSmallScreen && hasTouch) || queryParamMobile);
+    };
+
+    checkIsMobile();
+    window.addEventListener("resize", checkIsMobile);
+    return () => window.removeEventListener("resize", checkIsMobile);
+  }, []);
 
   // Automation Panel States
   const [automationMode, setAutomationMode] = useState<"all-off" | "all-on" | "custom">("custom");
@@ -989,7 +1009,18 @@ export default function App() {
     devicesRef.current = devices;
   }, [devices]);
 
-  const lastCheckedMinuteRef = useRef("");
+  // Track per-automation execution to ensure reliable execution at the scheduled minute
+  const executedMinutesRef = useRef<Record<string, string>>({});
+
+  const normalizeHHMM = (timeStr: string): string => {
+    if (!timeStr) return "";
+    const parts = timeStr.trim().split(":");
+    if (parts.length < 2) return "";
+    const h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return "";
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  };
 
   const executeAutomationAction = async (action: string) => {
     const targetUrl = `http://${config.serverIp}:${config.serverPort}/`;
@@ -1056,8 +1087,7 @@ export default function App() {
 
     if (id === "time_automation_on") {
       if (!isDarkInKolkata) {
-        addLog("warning", "Time Automation On Aborted", "Kolkata Sunset Detector reports it is not dark yet.");
-        return;
+        addLog("info", "Time Automation On Notice", "Kolkata Sunset Detector reports daylight, but schedule execution proceeding as configured.");
       }
       
       // Turn on "time lights" (Ambient Light, Low Ambient Light, High Ambient Light)
@@ -1071,7 +1101,7 @@ export default function App() {
           }
         }
       });
-      addLog("success", "Time Automation On Executed", `Turned on ${count} ambient/time lights locally because it is dark in Kolkata.`);
+      addLog("success", "Time Automation On Executed", `Turned on ${count} ambient/time lights locally.`);
       
       // Trigger single backend automation call with NO value passed
       executeAutomationAction(id);
@@ -1188,18 +1218,22 @@ export default function App() {
 
       const now = new Date();
       const currentHHMM = getKolkataHHMM(now); // Strictly Asia/Kolkata (IST) time
-      
-      // Prevent running multiple times in the same minute
-      if (currentHHMM === lastCheckedMinuteRef.current) return;
+      const dateStr = now.toDateString();
 
       Object.keys(automations).forEach((id) => {
         const auto = automations[id];
         // Schedule is active if: master mode is "all-on" OR (master mode is "custom" and individual schedule is enabled)
         const isScheduleActive = automationMode === "all-on" || (automationMode === "custom" && auto.enabled);
         
-        if (isScheduleActive && auto.time === currentHHMM) {
-          lastCheckedMinuteRef.current = currentHHMM;
-          runAutomation(id, true);
+        const normAutoTime = normalizeHHMM(auto.time);
+        const normCurrentTime = normalizeHHMM(currentHHMM);
+
+        if (isScheduleActive && normAutoTime && normAutoTime === normCurrentTime) {
+          const execKey = `${id}_${normCurrentTime}_${dateStr}`;
+          if (executedMinutesRef.current[id] !== execKey) {
+            executedMinutesRef.current[id] = execKey;
+            runAutomation(id, true);
+          }
         }
       });
     };
@@ -1707,6 +1741,10 @@ export default function App() {
         }
       };
 
+      rec.onstart = () => {
+        setListening(true);
+      };
+
       rec.onend = () => {
         setListening(false);
         if (listeningTimeoutRef.current) {
@@ -1714,11 +1752,11 @@ export default function App() {
           listeningTimeoutRef.current = null;
         }
 
-        // Auto-restart if wake-word mode is active and we are not speaking/processing
-        if (wakeWordEnabledRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+        // Auto-restart if user did NOT explicitly stop recognition, wake-word mode is active, and we are not speaking/processing
+        if (!userStoppedRef.current && wakeWordEnabledRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
           setTimeout(() => {
             try {
-              if (recognitionRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+              if (!userStoppedRef.current && recognitionRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
                 recognitionRef.current.start();
                 setListening(true);
               }
@@ -1789,6 +1827,7 @@ export default function App() {
     }
 
     if (listening) {
+      userStoppedRef.current = true;
       try {
         recognitionRef.current?.stop();
         setListening(false);
@@ -1796,6 +1835,7 @@ export default function App() {
         console.warn("Error stopping speech recognition:", err);
       }
     } else {
+      userStoppedRef.current = false;
       try {
         window.speechSynthesis.cancel(); // Stop talking first
         if (wakeWordEnabled) {
@@ -2194,25 +2234,10 @@ export default function App() {
 
   const syncDeviceStates = async () => {
     setIsSyncing(true);
-    addLog("info", "Syncing live device statuses from central server database...");
-
-    try {
-      const res = await fetch("/api/devices");
-      if (res.ok) {
-        const fetchedDevices = await res.json();
-        if (Array.isArray(fetchedDevices) && fetchedDevices.length > 0) {
-          setDevices(fetchedDevices);
-          addLog("success", "Synchronization Completed", "Fetched status successfully from central backend!");
-          setIsSyncing(false);
-          return;
-        }
-      }
-    } catch (err) {
-      console.warn("Central backend sync failed, attempting LAN sync fallback:", err);
-    }
-
-    addLog("info", `Syncing live device statuses from local Jerry assistant at http://${config.serverIp}:${config.serverPort}...`);
+    addLog("info", `Syncing live device statuses from local network assistant at http://${config.serverIp}:${config.serverPort}...`);
+    
     const targetUrl = `http://${config.serverIp}:${config.serverPort}/`;
+    let syncedFromTarget = false;
 
     try {
       let response;
@@ -2227,7 +2252,7 @@ export default function App() {
         });
       } else {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
         response = await fetch(targetUrl, {
           method: "GET",
           signal: controller.signal,
@@ -2240,12 +2265,12 @@ export default function App() {
         const result = await response.json();
         const responseData = config.useProxy ? result.data : result;
 
-        if (responseData && responseData.states) {
-          const remoteStates = responseData.states;
+        if (responseData && (responseData.states || responseData.devices)) {
+          const remoteStates = responseData.states || responseData.devices || responseData;
           let updatedCount = 0;
 
           setDevices(prevDevices => {
-            return prevDevices.map(dev => {
+            const updatedDevices = prevDevices.map(dev => {
               const roomName = dev.room.toLowerCase();
               const deviceKey = dev.deviceKey?.toLowerCase();
 
@@ -2255,14 +2280,13 @@ export default function App() {
                   const updated = { ...dev };
                   const stateStr = String(rawState).toLowerCase();
 
-                  if (stateStr === "on" || stateStr === "true") {
+                  if (stateStr === "on" || stateStr === "true" || stateStr === "1") {
                     updated.on = true;
                     updated.statusText = dev.category === "fan" && dev.value ? `Speed ${dev.value}` : "On";
-                  } else if (stateStr === "off" || stateStr === "false") {
+                  } else if (stateStr === "off" || stateStr === "false" || stateStr === "0") {
                     updated.on = false;
                     updated.statusText = "Off";
                   } else {
-                    // E.g. Speed 3, active state attributes, etc.
                     updated.statusText = String(rawState);
                     if (!isNaN(Number(rawState))) {
                       const speedNum = Number(rawState);
@@ -2276,25 +2300,42 @@ export default function App() {
               }
               return dev;
             });
+
+            // Sync with central server database
+            fetch("/api/devices/sync-all", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ devices: updatedDevices })
+            }).catch(e => console.warn("Central sync-all backup failed:", e));
+
+            return updatedDevices;
           });
 
-          addLog("success", "Synchronization Completed", `Fetched status successfully! Synchronized ${updatedCount} device states from local Home Assistant connection.`);
-        } else {
-          throw new Error("Local assistant responded successfully but did not return 'states' key.");
+          addLog("success", "Synchronization Completed", `Fetched status successfully! Synchronized ${updatedCount} device states from local assistant connection (${config.serverIp}).`);
+          syncedFromTarget = true;
         }
-      } else {
-        throw new Error(`Device responded with error status ${response.status}`);
       }
     } catch (syncError: any) {
-      console.warn("Status synchronization failed:", syncError);
-      addLog(
-        "warning",
-        "Failed to pull live states",
-        `Could not pull live states from local network assistant at http://${config.serverIp}:${config.serverPort}.\nError details: ${syncError.message || "Timeout"}.\n\nEnsure your local python assistant is running with status endpoint support.`
-      );
-    } finally {
-      setIsSyncing(false);
+      console.warn("Target network status synchronization failed, falling back to central backend:", syncError);
+      addLog("warning", "Target Assistant Offline", `Could not connect directly to http://${config.serverIp}:${config.serverPort}: ${syncError.message || "Timeout"}. Falling back to central database.`);
     }
+
+    if (!syncedFromTarget) {
+      try {
+        const res = await fetch("/api/devices");
+        if (res.ok) {
+          const fetchedDevices = await res.json();
+          if (Array.isArray(fetchedDevices) && fetchedDevices.length > 0) {
+            setDevices(fetchedDevices);
+            addLog("success", "Synchronization Completed", "Loaded latest status from central server database.");
+          }
+        }
+      } catch (err: any) {
+        addLog("error", "Failed to pull live states", `Database connection issue: ${err.message}`);
+      }
+    }
+
+    setIsSyncing(false);
   };
 
   const handleManualSubmit = (e: FormEvent) => {
@@ -2713,17 +2754,20 @@ export default function App() {
               <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="truncate">Config</span>
             </button>
-            <button
-              onClick={toggleSoloMode}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                soloMode
-                  ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
-                  : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
-              }`}
-            >
-              <Laptop className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400" />
-              <span className="truncate">Mobile Mode</span>
-            </button>
+            {isMobile && (
+              <button
+                onClick={toggleSoloMode}
+                className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                  soloMode
+                    ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+                    : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+                }`}
+                title="Switch to Mobile Vox Client Mode"
+              >
+                <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400" />
+                <span className="truncate">Mobile Mode</span>
+              </button>
+            )}
           </div>
         </nav>
 

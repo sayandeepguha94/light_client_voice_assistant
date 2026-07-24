@@ -1597,6 +1597,7 @@ export default function App() {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 1.05;
       utterance.pitch = 1.0;
+      utterance.volume = 1.0;
       utterance.lang = selectedLanguage;
       
       // Select an elegant female/neutral voice in the chosen language if available
@@ -1764,19 +1765,19 @@ export default function App() {
 
               setTranscript(cleanText);
               playBeep(880, 0.25, "sine", 0.9);
-              setAiResponse("mhm...");
+              setAiResponse("Yup say");
               setWakeWordStandby(false);
               wakeWordStandbyRef.current = false;
 
               if (commandPart) {
-                addLog("voice", `Wake word "Hey Jerry" detected. Replying 'mhm...' and executing command: "${commandPart}"`);
-                speakText("mhm...", true);
+                addLog("voice", `Wake word "Hey Jerry" detected. Replying 'Yup say' and executing command: "${commandPart}"`);
+                speakText("Yup say", true);
                 setTimeout(() => {
                   handleProcessCommand(commandPart);
                 }, 700);
               } else {
-                addLog("voice", "Wake word 'Hey Jerry' detected. Replying 'mhm...' and listening for command!");
-                speakText("mhm...", true);
+                addLog("voice", "Wake word 'Hey Jerry' detected. Replying 'Yup say' and listening for command!");
+                speakText("Yup say", true);
               }
             } else {
               // Completely ignore ambient speech when wake word is not spoken!

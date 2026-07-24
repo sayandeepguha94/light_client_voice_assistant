@@ -1757,40 +1757,41 @@ export default function App() {
           const lowerText = cleanText.toLowerCase();
 
           if (wakeWordEnabledRef.current && wakeWordStandbyRef.current) {
-            const wakeWordMatch = lowerText.match(/^(hey\s+jerry|jerry)\s*(.*)$/i);
+            const wakeWordMatch = lowerText.match(/\b(hey\s+jerry|jerry)\b/i);
             if (wakeWordMatch) {
-              const commandPart = wakeWordMatch[2] ? wakeWordMatch[2].trim() : "";
+              const matchIndex = lowerText.search(/\b(hey\s+jerry|jerry)\b/i);
+              const commandPart = lowerText.slice(matchIndex).replace(/^(hey\s+jerry|jerry)\s*/i, "").trim();
+
+              setTranscript(cleanText);
+              playBeep(880, 0.25, "sine", 0.9);
+              setAiResponse("mhm...");
+              setWakeWordStandby(false);
+              wakeWordStandbyRef.current = false;
+
               if (commandPart) {
-                setTranscript(cleanText);
-                playBeep(880, 0.25, "sine", 0.9);
                 addLog("voice", `Wake word "Hey Jerry" detected. Replying 'mhm...' and executing command: "${commandPart}"`);
-                setAiResponse("mhm...");
                 speakText("mhm...", true);
                 setTimeout(() => {
                   handleProcessCommand(commandPart);
                 }, 700);
               } else {
-                playBeep(880, 0.25, "sine", 0.9);
-                setTranscript("Hey Jerry?");
-                setAiResponse("mhm...");
-                setWakeWordStandby(false);
-                wakeWordStandbyRef.current = false;
                 addLog("voice", "Wake word 'Hey Jerry' detected. Replying 'mhm...' and listening for command!");
                 speakText("mhm...", true);
               }
             } else {
-              // Direct command detected while in wake-word standby - process directly so user speech is never ignored!
-              setTranscript(cleanText);
-              playBeep(880, 0.25, "sine", 0.9);
-              addLog("voice", `Direct voice command detected: "${cleanText}"`);
-              handleProcessCommand(cleanText);
-              setWakeWordStandby(false);
-              wakeWordStandbyRef.current = false;
+              // Completely ignore ambient speech when wake word is not spoken!
+              console.log("Ignored background speech in standby (no wake word match):", cleanText);
             }
           } else {
             setTranscript(cleanText);
             playBeep(880, 0.25, "sine", 0.9);
             addLog("voice", `Voice command detected: "${cleanText}"`);
+            
+            // Re-arm wake word standby mode immediately after receiving the single instruction
+            if (wakeWordEnabledRef.current) {
+              setWakeWordStandby(true);
+              wakeWordStandbyRef.current = true;
+            }
             handleProcessCommand(cleanText);
           }
         }
@@ -1818,6 +1819,12 @@ export default function App() {
         if (listeningTimeoutRef.current) {
           clearTimeout(listeningTimeoutRef.current);
           listeningTimeoutRef.current = null;
+        }
+
+        // If active command mode timed out without a command, re-arm wake word standby
+        if (!wakeWordStandbyRef.current && wakeWordEnabledRef.current) {
+          setWakeWordStandby(true);
+          wakeWordStandbyRef.current = true;
         }
 
         // Auto-restart if user did NOT explicitly stop recognition, wake-word mode is active, and we are not speaking/processing

@@ -1668,19 +1668,19 @@ export default function App() {
       setSpeechSupported(true);
       const rec = new SpeechRecognition();
       rec.continuous = false;
-      rec.interimResults = false;
+      rec.interimResults = true;
       rec.lang = selectedLanguage;
 
       rec.onstart = () => {
         setListening(true);
         setTranscript("");
-        // Play beep only if we are transitioning into active command mode
+        // Play beep when transitioning into active command mode
         if (!wakeWordStandbyRef.current) {
           playBeep(880, 0.25, "sine", 0.9);
         }
-        addLog("info", "Microphone listening stream initialized.");
+        addLog("info", "Microphone listening active.");
 
-        // Automatically stop listening after 6 seconds in active command mode
+        // Automatically stop listening after 7 seconds if silent
         if (listeningTimeoutRef.current) {
           clearTimeout(listeningTimeoutRef.current);
         }
@@ -1689,60 +1689,87 @@ export default function App() {
             try {
               recognitionRef.current?.stop();
             } catch (err) {
-              console.warn("Failed to stop listening after 6 seconds:", err);
+              console.warn("Failed to stop listening on timeout:", err);
             }
-          }, 6000);
+          }, 7000);
         }
       };
 
       rec.onresult = (event: any) => {
-        const resultText = event.results[0][0].transcript;
-        const cleanText = resultText.trim();
-        const lowerText = cleanText.toLowerCase();
+        let interimText = "";
+        let finalText = "";
 
-        if (wakeWordEnabledRef.current && wakeWordStandbyRef.current) {
-          const wakeWordMatch = lowerText.match(/^(hey\s+jerry|jerry)\s*(.*)$/i);
-          if (wakeWordMatch) {
-            const commandPart = wakeWordMatch[2] ? wakeWordMatch[2].trim() : "";
-            if (commandPart) {
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const res = event.results[i];
+          if (res.isFinal) {
+            finalText += res[0].transcript;
+          } else {
+            interimText += res[0].transcript;
+          }
+        }
+
+        if (interimText) {
+          setTranscript(interimText.trim());
+        }
+
+        if (finalText) {
+          const cleanText = finalText.trim();
+          if (!cleanText) return;
+          const lowerText = cleanText.toLowerCase();
+
+          if (wakeWordEnabledRef.current && wakeWordStandbyRef.current) {
+            const wakeWordMatch = lowerText.match(/^(hey\s+jerry|jerry)\s*(.*)$/i);
+            if (wakeWordMatch) {
+              const commandPart = wakeWordMatch[2] ? wakeWordMatch[2].trim() : "";
+              if (commandPart) {
+                setTranscript(cleanText);
+                playBeep(880, 0.25, "sine", 0.9);
+                addLog("voice", `Wake word + command detected: "${commandPart}"`);
+                handleProcessCommand(commandPart);
+              } else {
+                playBeep(880, 0.25, "sine", 0.9);
+                setTranscript("Hey Jerry? Listening...");
+                setWakeWordStandby(false);
+                wakeWordStandbyRef.current = false;
+                addLog("voice", "Wake word 'Hey Jerry' detected. Speak your command now!");
+              }
+            } else {
+              // Direct command detected while in wake-word standby - process directly so user speech is never ignored!
               setTranscript(cleanText);
               playBeep(880, 0.25, "sine", 0.9);
-              addLog("voice", `Wake word + command detected: "${commandPart}"`);
-              handleProcessCommand(commandPart);
-            } else {
-              playBeep(880, 0.25, "sine", 0.9);
-              setTranscript("Hey Jerry?");
+              addLog("voice", `Direct voice command detected: "${cleanText}"`);
+              handleProcessCommand(cleanText);
               setWakeWordStandby(false);
-              recognitionRef.current?.stop();
+              wakeWordStandbyRef.current = false;
             }
           } else {
-            console.log("Ignored speech in standby (no wake-word match):", cleanText);
-          }
-        } else {
-          setTranscript(cleanText);
-          addLog("voice", `Voice command detected: "${cleanText}"`);
-          handleProcessCommand(cleanText);
-          if (wakeWordEnabledRef.current) {
-            setWakeWordStandby(true);
+            setTranscript(cleanText);
+            playBeep(880, 0.25, "sine", 0.9);
+            addLog("voice", `Voice command detected: "${cleanText}"`);
+            handleProcessCommand(cleanText);
+            if (wakeWordEnabledRef.current) {
+              setWakeWordStandby(true);
+              wakeWordStandbyRef.current = true;
+            }
           }
         }
       };
 
       rec.onerror = (event: any) => {
         console.error("Speech Recognition error:", event.error);
-        if (event.error !== "no-speech") {
-          addLog("error", `Voice recognition anomaly: ${event.error}`, "Ensure microphone access is enabled in Chrome settings.");
-          playBeep(220, 0.25, "triangle"); // low error beep
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          addLog("error", "Microphone access blocked", "Allow microphone permissions in your browser address bar or settings.");
+          setAiResponse("Microphone permission is blocked by your browser. Please allow microphone access in site settings or open the app directly in a new tab.");
+          playBeep(220, 0.25, "triangle");
+        } else if (event.error !== "no-speech" && event.error !== "aborted") {
+          addLog("error", `Voice recognition anomaly: ${event.error}`, "Ensure microphone access is enabled in browser settings.");
+          playBeep(220, 0.25, "triangle");
         }
         setListening(false);
         if (listeningTimeoutRef.current) {
           clearTimeout(listeningTimeoutRef.current);
           listeningTimeoutRef.current = null;
         }
-      };
-
-      rec.onstart = () => {
-        setListening(true);
       };
 
       rec.onend = () => {
@@ -1763,13 +1790,13 @@ export default function App() {
             } catch (err) {
               console.warn("Auto-restart of recognition failed:", err);
             }
-          }, 200);
+          }, 300);
         }
       };
 
       recognitionRef.current = rec;
     } else {
-      addLog("warning", "Web Speech recognition not supported in this iframe/context.", "Please run the application directly in a new tab or verify Chromium version. Standard manual commands are still fully supported.");
+      addLog("warning", "Web Speech recognition not supported in this browser context.", "Open the application directly in Google Chrome / Edge in a new tab for native Web Speech support.");
     }
 
     return () => {
@@ -1822,7 +1849,7 @@ export default function App() {
 
   const toggleListening = () => {
     if (!speechSupported) {
-      addLog("warning", "Speech Recognition is offline.", "Please check browser microphone permissions.");
+      addLog("warning", "Speech Recognition is offline.", "Please open app in a new browser tab or verify browser microphone permissions.");
       return;
     }
 
@@ -1837,17 +1864,20 @@ export default function App() {
     } else {
       userStoppedRef.current = false;
       try {
-        window.speechSynthesis.cancel(); // Stop talking first
-        if (wakeWordEnabled) {
-          setWakeWordStandby(true);
-        } else {
-          setWakeWordStandby(false);
-        }
+        window.speechSynthesis.cancel(); // Stop active voices
+        // Explicit manual click on Orb means user intends to speak directly to Jerry
+        setWakeWordStandby(false);
+        wakeWordStandbyRef.current = false;
+        
         recognitionRef.current?.start();
         setListening(true); // Immediate visual feedback for touchscreens
-      } catch (err) {
-        console.warn("Failed starting speech recognition:", err);
-        setListening(false);
+      } catch (err: any) {
+        if (err.name === "InvalidStateError") {
+          setListening(true);
+        } else {
+          console.warn("Failed starting speech recognition:", err);
+          setListening(false);
+        }
       }
     }
   };

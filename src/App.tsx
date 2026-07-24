@@ -3,7 +3,7 @@ import {
   Mic, MicOff, Power, RefreshCw, Volume2, VolumeX, Terminal, 
   Settings, HelpCircle, LayoutGrid, CheckCircle2, AlertCircle, 
   Lightbulb, Thermometer, Wind, Lock, Unlock, ShieldAlert, ShieldCheck, Airplay, Send, Laptop,
-  ChevronDown, ChevronUp, Zap, Clock, RotateCcw, Wifi, Cpu, ExternalLink, Smartphone
+  ChevronDown, ChevronUp, Zap, Clock, RotateCcw, Wifi, Cpu, ExternalLink, Smartphone, Radio
 } from "lucide-react";
 import { Device, SystemLog, ConnectionConfig, ChatMessage } from "./types";
 import ConnectionSettings from "./components/ConnectionSettings";
@@ -1559,13 +1559,29 @@ export default function App() {
   };
 
   // Handle Text-To-Speech (TTS)
-  const speakText = (text: string) => {
+  const speakText = (text: string, isWakeAck: boolean = false) => {
     if (!speechSynthesisEnabled || !('speechSynthesis' in window)) {
-      if (wakeWordEnabledRef.current) {
-        setWakeWordStandby(true);
+      if (isWakeAck) {
+        setWakeWordStandby(false);
+        wakeWordStandbyRef.current = false;
         setTimeout(() => {
           try {
             if (recognitionRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+              userStoppedRef.current = false;
+              recognitionRef.current.start();
+              setListening(true);
+            }
+          } catch (err) {
+            console.warn("Auto-restart after wake ack (no TTS) failed:", err);
+          }
+        }, 200);
+      } else if (wakeWordEnabledRef.current) {
+        setWakeWordStandby(true);
+        wakeWordStandbyRef.current = true;
+        setTimeout(() => {
+          try {
+            if (recognitionRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+              userStoppedRef.current = false;
               recognitionRef.current.start();
               setListening(true);
             }
@@ -1607,11 +1623,29 @@ export default function App() {
       utterance.onend = () => {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
-        if (wakeWordEnabledRef.current) {
-          setWakeWordStandby(true);
+        if (isWakeAck) {
+          // Keep in active command listening state (wakeWordStandby = false) so user can speak command right after "mhm..."
+          setWakeWordStandby(false);
+          wakeWordStandbyRef.current = false;
           setTimeout(() => {
             try {
               if (recognitionRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                userStoppedRef.current = false;
+                recognitionRef.current.start();
+                setListening(true);
+              }
+            } catch (err) {
+              console.warn("Auto-restart after wake ack TTS failed:", err);
+            }
+          }, 200);
+        } else if (wakeWordEnabledRef.current) {
+          // Command response completed, return to wake word standby mode
+          setWakeWordStandby(true);
+          wakeWordStandbyRef.current = true;
+          setTimeout(() => {
+            try {
+              if (recognitionRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+                userStoppedRef.current = false;
                 recognitionRef.current.start();
                 setListening(true);
               }
@@ -1625,19 +1659,24 @@ export default function App() {
       utterance.onerror = () => {
         setIsSpeaking(false);
         isSpeakingRef.current = false;
-        if (wakeWordEnabledRef.current) {
+        if (isWakeAck) {
+          setWakeWordStandby(false);
+          wakeWordStandbyRef.current = false;
+        } else if (wakeWordEnabledRef.current) {
           setWakeWordStandby(true);
-          setTimeout(() => {
-            try {
-              if (recognitionRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
-                recognitionRef.current.start();
-                setListening(true);
-              }
-            } catch (err) {
-              console.warn("Auto-restart after TTS error failed:", err);
-            }
-          }, 300);
+          wakeWordStandbyRef.current = true;
         }
+        setTimeout(() => {
+          try {
+            if (recognitionRef.current && !isSpeakingRef.current && !isProcessingRef.current) {
+              userStoppedRef.current = false;
+              recognitionRef.current.start();
+              setListening(true);
+            }
+          } catch (err) {
+            console.warn("Auto-restart after TTS error failed:", err);
+          }
+        }, 300);
       };
       
       window.speechSynthesis.speak(utterance);
@@ -1724,14 +1763,20 @@ export default function App() {
               if (commandPart) {
                 setTranscript(cleanText);
                 playBeep(880, 0.25, "sine", 0.9);
-                addLog("voice", `Wake word + command detected: "${commandPart}"`);
-                handleProcessCommand(commandPart);
+                addLog("voice", `Wake word "Hey Jerry" detected. Replying 'mhm...' and executing command: "${commandPart}"`);
+                setAiResponse("mhm...");
+                speakText("mhm...", true);
+                setTimeout(() => {
+                  handleProcessCommand(commandPart);
+                }, 700);
               } else {
                 playBeep(880, 0.25, "sine", 0.9);
-                setTranscript("Hey Jerry? Listening...");
+                setTranscript("Hey Jerry?");
+                setAiResponse("mhm...");
                 setWakeWordStandby(false);
                 wakeWordStandbyRef.current = false;
-                addLog("voice", "Wake word 'Hey Jerry' detected. Speak your command now!");
+                addLog("voice", "Wake word 'Hey Jerry' detected. Replying 'mhm...' and listening for command!");
+                speakText("mhm...", true);
               }
             } else {
               // Direct command detected while in wake-word standby - process directly so user speech is never ignored!
@@ -1747,10 +1792,6 @@ export default function App() {
             playBeep(880, 0.25, "sine", 0.9);
             addLog("voice", `Voice command detected: "${cleanText}"`);
             handleProcessCommand(cleanText);
-            if (wakeWordEnabledRef.current) {
-              setWakeWordStandby(true);
-              wakeWordStandbyRef.current = true;
-            }
           }
         }
       };
@@ -2484,13 +2525,42 @@ export default function App() {
                     <Mic className="w-4 h-4 text-purple-400 animate-pulse" />
                     Speech Core
                   </h3>
-                  <button 
-                    onClick={() => setSpeechSynthesisEnabled(!speechSynthesisEnabled)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-[9px] rounded-md uppercase tracking-wider transition-colors text-slate-300 font-semibold cursor-pointer"
-                  >
-                    {speechSynthesisEnabled ? <Volume2 className="w-3 h-3 text-cyan-400" /> : <VolumeX className="w-3 h-3 text-slate-500" />}
-                    <span>{speechSynthesisEnabled ? "TTS On" : "TTS Off"}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        const newState = !wakeWordEnabled;
+                        setWakeWordEnabled(newState);
+                        setWakeWordStandby(newState);
+                        wakeWordStandbyRef.current = newState;
+                        if (newState && !listening) {
+                          try {
+                            userStoppedRef.current = false;
+                            recognitionRef.current?.start();
+                            setListening(true);
+                          } catch (err) {
+                            console.warn("Failed starting speech recognition on wake word toggle:", err);
+                          }
+                        }
+                        addLog("info", newState ? "Wake Up listener activated ('Hey Jerry' or 'Jerry')" : "Wake Up listener disabled");
+                      }}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] rounded-md uppercase tracking-wider transition-all font-semibold cursor-pointer ${
+                        wakeWordEnabled
+                          ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.3)]"
+                          : "bg-slate-800 hover:bg-slate-700 text-slate-400 border border-transparent"
+                      }`}
+                      title={wakeWordEnabled ? "Wake Up listener active (Say 'Hey Jerry' or 'Jerry')" : "Enable Wake Up listener"}
+                    >
+                      <Radio className={`w-3 h-3 ${wakeWordEnabled ? "text-purple-400 animate-pulse" : "text-slate-500"}`} />
+                      <span>{wakeWordEnabled ? "Wake Up On" : "Wake Up Off"}</span>
+                    </button>
+                    <button 
+                      onClick={() => setSpeechSynthesisEnabled(!speechSynthesisEnabled)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-[9px] rounded-md uppercase tracking-wider transition-colors text-slate-300 font-semibold cursor-pointer"
+                    >
+                      {speechSynthesisEnabled ? <Volume2 className="w-3 h-3 text-cyan-400" /> : <VolumeX className="w-3 h-3 text-slate-500" />}
+                      <span>{speechSynthesisEnabled ? "TTS On" : "TTS Off"}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Orb Area */}
@@ -3426,6 +3496,33 @@ export default function App() {
                   Voice Control Console
                 </h3>
                 <div className="flex gap-2 relative z-10">
+                  <button 
+                    onClick={() => {
+                      const newState = !wakeWordEnabled;
+                      setWakeWordEnabled(newState);
+                      setWakeWordStandby(newState);
+                      wakeWordStandbyRef.current = newState;
+                      if (newState && !listening) {
+                        try {
+                          userStoppedRef.current = false;
+                          recognitionRef.current?.start();
+                          setListening(true);
+                        } catch (err) {
+                          console.warn("Failed starting speech recognition on wake word toggle:", err);
+                        }
+                      }
+                      addLog("info", newState ? "Wake Up listener activated ('Hey Jerry' or 'Jerry')" : "Wake Up listener disabled");
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] rounded-md uppercase tracking-wider transition-all font-semibold cursor-pointer ${
+                      wakeWordEnabled
+                        ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.3)]"
+                        : "bg-slate-800 hover:bg-slate-700 text-slate-400 border border-transparent"
+                    }`}
+                    title={wakeWordEnabled ? "Wake Up listener active (Say 'Hey Jerry' or 'Jerry')" : "Enable Wake Up listener"}
+                  >
+                    <Radio className={`w-3 h-3 ${wakeWordEnabled ? "text-purple-400 animate-pulse" : "text-slate-500"}`} />
+                    <span>{wakeWordEnabled ? "Wake Up On" : "Wake Up Off"}</span>
+                  </button>
                   <button 
                     onClick={() => setSpeechSynthesisEnabled(!speechSynthesisEnabled)}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-[9px] rounded-md uppercase tracking-wider transition-colors text-slate-300 font-semibold cursor-pointer"

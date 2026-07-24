@@ -1765,19 +1765,21 @@ export default function App() {
 
               setTranscript(cleanText);
               playBeep(880, 0.25, "sine", 0.9);
-              setAiResponse("Yup say");
               setWakeWordStandby(false);
               wakeWordStandbyRef.current = false;
 
               if (commandPart) {
-                addLog("voice", `Wake word "Hey Jerry" detected. Replying 'Yup say' and executing command: "${commandPart}"`);
-                speakText("Yup say", true);
-                setTimeout(() => {
-                  handleProcessCommand(commandPart);
-                }, 700);
+                setAiResponse(`Command: "${commandPart}"`);
+                addLog("voice", `Wake word "Hey Jerry" detected. Executing command: "${commandPart}"`);
+                // Re-arm wake word standby mode after single instruction
+                if (wakeWordEnabledRef.current) {
+                  setWakeWordStandby(true);
+                  wakeWordStandbyRef.current = true;
+                }
+                handleProcessCommand(commandPart);
               } else {
-                addLog("voice", "Wake word 'Hey Jerry' detected. Replying 'Yup say' and listening for command!");
-                speakText("Yup say", true);
+                setAiResponse("Listening for command...");
+                addLog("voice", "Wake word 'Hey Jerry' detected. Listening for command!");
               }
             } else {
               // Completely ignore ambient speech when wake word is not spoken!

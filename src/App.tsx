@@ -3,12 +3,15 @@ import {
   Mic, MicOff, Power, RefreshCw, Volume2, VolumeX, Terminal, 
   Settings, HelpCircle, LayoutGrid, CheckCircle2, AlertCircle, 
   Lightbulb, Thermometer, Wind, Lock, Unlock, ShieldAlert, ShieldCheck, Airplay, Send, Laptop,
-  ChevronDown, ChevronUp, Zap, Clock, RotateCcw, Wifi, Cpu, ExternalLink, Smartphone, Radio
+  ChevronDown, ChevronUp, Zap, Clock, RotateCcw, Wifi, Cpu, ExternalLink, Smartphone, Radio,
+  ShoppingCart, CloudSun
 } from "lucide-react";
 import { Device, SystemLog, ConnectionConfig, ChatMessage } from "./types";
 import ConnectionSettings from "./components/ConnectionSettings";
 import IntegrationGuide from "./components/IntegrationGuide";
 import SystemLogComponent from "./components/SystemLog";
+import { ShoppingList } from "./components/ShoppingList";
+import { WeatherPanel } from "./components/WeatherPanel";
 
 // Default IoT devices to start with from real configuration
 const INITIAL_DEVICES: Device[] = [
@@ -905,8 +908,8 @@ export default function App() {
     return false;
   });
 
-  // Navigation: "devices" | "schedules" | "chat" | "configurations"
-  const [activeTab, setActiveTab] = useState<"devices" | "schedules" | "chat" | "configurations">(
+  // Navigation: "devices" | "shopping" | "chat" | "configurations"
+  const [activeTab, setActiveTab] = useState<"devices" | "shopping" | "chat" | "configurations">(
     () => {
       if (typeof window !== "undefined") {
         const params = new URLSearchParams(window.location.search);
@@ -2832,15 +2835,15 @@ export default function App() {
               <span className="truncate">Ecosystem Devices</span>
             </button>
             <button
-              onClick={() => setActiveTab("schedules")}
+              onClick={() => setActiveTab("shopping")}
               className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                activeTab === "schedules"
+                activeTab === "shopping"
                   ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
                   : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
               }`}
             >
-              <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="truncate">Schedules</span>
+              <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="truncate">Shopping List</span>
             </button>
             <button
               onClick={() => setActiveTab("chat")}
@@ -3050,129 +3053,21 @@ export default function App() {
               </div>
             </div>
 
-            {/* Ecosystem Automations Control Panel */}
+            {/* Weather & AQI Environmental Panel */}
             <div className="lg:col-span-4 flex flex-col">
-              
-              {/* Master Control Card */}
-              <div className="bg-[#11131f]/40 border border-white/5 p-5 rounded-2xl flex flex-col justify-between h-full gap-6">
-                <div>
-                  <div className="flex justify-between items-center pb-2 border-b border-white/5 mb-4">
-                    <h3 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
-                      Ecosystem Automations
-                    </h3>
-                    <span className="text-[10px] font-mono text-cyan-400 font-bold bg-cyan-400/10 px-2.5 py-0.5 rounded-full animate-pulse">
-                      Active
-                    </span>
-                  </div>
-
-                  {/* Master Mode Selector (All Off, All On, Custom) */}
-                  <div className="bg-slate-900/60 border border-white/5 rounded-xl p-3.5 flex flex-col gap-2 mb-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Master Mode Selector</span>
-                      <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full ${
-                        automationMode === "all-off" ? "bg-rose-500/10 text-rose-400" :
-                        automationMode === "all-on" ? "bg-emerald-500/10 text-emerald-400" : "bg-cyan-500/10 text-cyan-400"
-                      }`}>
-                        {automationMode === "all-off" ? "All Off" :
-                         automationMode === "all-on" ? "Override (All On)" : "Custom Schedules"}
-                      </span>
-                    </div>
-                    <select
-                      value={automationMode}
-                      onChange={(e) => {
-                        const val = e.target.value as "all-off" | "all-on" | "custom";
-                        setAutomationMode(val);
-                        addLog("info", `Master Automation Mode switched to: ${val.toUpperCase()}`);
-                      }}
-                      className="bg-[#11131f] border border-white/10 text-xs text-slate-200 px-3 py-2 rounded-lg focus:outline-none focus:border-cyan-400/50 cursor-pointer font-sans w-full"
-                    >
-                      <option value="all-off">🔴 All Off (Pause All Schedules)</option>
-                      <option value="all-on">🟢 All On (Activate All Schedules)</option>
-                      <option value="custom">⚙️ Custom (Follow Individual Rules)</option>
-                    </select>
-                  </div>
-
-                  {/* Kolkata Environment Sensor with real Sunset API Integration */}
-                  <div className="bg-slate-900/40 border border-white/5 rounded-xl p-3.5 flex flex-col gap-3">
-                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-semibold text-white flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
-                          Kolkata Sunset Sensor
-                        </span>
-                        <span className="text-[9px] text-slate-500 font-mono">is_dark_in_kolkata()</span>
-                      </div>
-                      <button
-                        onClick={fetchKolkataDarkStatus}
-                        disabled={isLoadingSunset}
-                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer border border-white/5 disabled:opacity-50"
-                        title="Re-sync with Sunrise-Sunset API"
-                      >
-                        <RefreshCw className={`w-3 h-3 ${isLoadingSunset ? 'animate-spin text-cyan-400' : ''}`} />
-                      </button>
-                    </div>
-
-                    {sunsetInfo ? (
-                      <div className="grid grid-cols-2 gap-2 text-[10px] font-mono bg-black/20 p-2 rounded-lg border border-white/5">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-slate-500 uppercase text-[8px] tracking-wider">Sunrise (Local)</span>
-                          <span className="text-amber-400 font-bold">🌅 {sunsetInfo.sunrise}</span>
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-slate-500 uppercase text-[8px] tracking-wider">Sunset (Local)</span>
-                          <span className="text-indigo-400 font-bold">🌙 {sunsetInfo.sunset}</span>
-                        </div>
-                        <div className="col-span-2 pt-1.5 border-t border-white/5 flex justify-between items-center text-[8px] text-slate-500">
-                          <span>Checked: {sunsetInfo.lastChecked}</span>
-                          {sunsetInfo.isAutoSynced ? (
-                            <span className="text-emerald-500 flex items-center gap-0.5">● Synced</span>
-                          ) : (
-                            <span className="text-rose-400">Offline Fallback</span>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-2 text-[10px] text-slate-500 font-mono">
-                        {isLoadingSunset ? "Querying Sunrise-Sunset API..." : "No sunset data loaded."}
-                      </div>
-                    )}
-
-                    <div className="flex justify-between items-center gap-3 bg-black/10 p-2 rounded-lg border border-white/5">
-                      <span className="text-[10px] text-slate-400">Current Sensor Status</span>
-                      <button
-                        onClick={() => {
-                          setIsDarkInKolkata(!isDarkInKolkata);
-                          addLog("info", `Manual dark override triggered. Kolkata environment dark: ${!isDarkInKolkata}`);
-                        }}
-                        className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer ${
-                          isDarkInKolkata 
-                            ? "bg-indigo-500/15 text-indigo-400 border-indigo-500/30 hover:bg-indigo-500/25 shadow-[0_0_10px_rgba(99,102,241,0.1)]" 
-                            : "bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/25"
-                        }`}
-                      >
-                        {isDarkInKolkata ? "🌙 Dark (Active)" : "☀️ Light (Inactive)"}
-                      </button>
-                    </div>
-
-                    <button
-                      onClick={resetAutomationTimes}
-                      className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/5 hover:border-white/10 transition-all cursor-pointer font-sans"
-                    >
-                      <Clock className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-                      Reset Automation Times
-                    </button>
-                  </div>
-                </div>
-              </div>
-
+              <WeatherPanel onAddLog={addLog} />
             </div>
 
           </div>
         )}
 
-        {/* Schedules and Automation List Tab */}
-        {activeTab === "schedules" && (
+        {/* Shopping List Tab */}
+        {activeTab === "shopping" && (
+          <ShoppingList onAddLog={addLog} />
+        )}
+
+        {/* Legacy Schedules Removed */}
+        {false && (
           <div className="w-full max-w-5xl mx-auto bg-[#11131f]/20 border border-white/5 p-6 rounded-2xl flex flex-col gap-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-4 border-b border-white/10 gap-4">
               <div>

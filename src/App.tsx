@@ -2904,88 +2904,90 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto mb-6 px-1">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
-          {/* Left Column (8 Cols): Navigation Bar + Active Tab View */}
-          <div className="lg:col-span-8 flex flex-col gap-6 w-full">
+          {/* Left Column (8 or 12 Cols depending on localhost): Navigation Bar + Active Tab View */}
+          <div className={`${isLocalhost ? "lg:col-span-8" : "lg:col-span-12"} flex flex-col gap-6 w-full`}>
             
-            {/* Navigation Tab Bar */}
-            <nav className="bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full">
-              <div className="flex flex-wrap sm:flex-nowrap w-full gap-1">
-                <button
-                  onClick={() => {
-                    setRouteInfo({ mode: "full" });
-                    setActiveTab("devices");
-                    if (typeof window !== "undefined") window.history.pushState({}, "", "/");
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                    activeTab === "devices"
-                      ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 shadow-[0_0_15px_rgba(34,211,238,0.12)]"
-                      : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
-                  }`}
-                >
-                  <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="truncate">Ecosystem Devices</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setRouteInfo({ mode: "full" });
-                    setActiveTab("shopping");
-                    if (typeof window !== "undefined") window.history.pushState({}, "", "/");
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                    activeTab === "shopping"
-                      ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
-                      : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
-                  }`}
-                >
-                  <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="truncate">Shopping List</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setRouteInfo({ mode: "full" });
-                    setActiveTab("chat");
-                    if (typeof window !== "undefined") window.history.pushState({}, "", "/");
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                    activeTab === "chat" && !soloMode
-                      ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_15px_rgba(168,85,247,0.12)]"
-                      : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
-                  }`}
-                >
-                  <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="truncate">Voice Control</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setRouteInfo({ mode: "full" });
-                    setActiveTab("configurations");
-                    if (typeof window !== "undefined") window.history.pushState({}, "", "/");
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                    activeTab === "configurations"
-                      ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_15px_rgba(99,102,241,0.12)]"
-                      : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
-                  }`}
-                >
-                  <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="truncate">Config</span>
-                </button>
-                {isMobile && (
+            {/* Navigation Tab Bar (Only shown on full application root access /) */}
+            {routeInfo.mode === "full" && (
+              <nav className="bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full">
+                <div className="flex flex-wrap sm:flex-nowrap w-full gap-1">
                   <button
-                    onClick={toggleSoloMode}
+                    onClick={() => {
+                      setRouteInfo({ mode: "full" });
+                      setActiveTab("devices");
+                      if (typeof window !== "undefined") window.history.pushState({}, "", "/");
+                    }}
                     className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                      soloMode
-                        ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+                      activeTab === "devices"
+                        ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 shadow-[0_0_15px_rgba(34,211,238,0.12)]"
                         : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
                     }`}
-                    title="Switch to Mobile Vox Client Mode"
                   >
-                    <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400" />
-                    <span className="truncate">Mobile Mode</span>
+                    <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="truncate">Ecosystem Devices</span>
                   </button>
-                )}
-              </div>
-            </nav>
+                  <button
+                    onClick={() => {
+                      setRouteInfo({ mode: "full" });
+                      setActiveTab("shopping");
+                      if (typeof window !== "undefined") window.history.pushState({}, "", "/");
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                      activeTab === "shopping"
+                        ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
+                        : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+                    }`}
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="truncate">Shopping List</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRouteInfo({ mode: "full" });
+                      setActiveTab("chat");
+                      if (typeof window !== "undefined") window.history.pushState({}, "", "/");
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                      activeTab === "chat" && !soloMode
+                        ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_15px_rgba(168,85,247,0.12)]"
+                        : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+                    }`}
+                  >
+                    <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="truncate">Voice Control</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRouteInfo({ mode: "full" });
+                      setActiveTab("configurations");
+                      if (typeof window !== "undefined") window.history.pushState({}, "", "/");
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                      activeTab === "configurations"
+                        ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_15px_rgba(99,102,241,0.12)]"
+                        : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+                    }`}
+                  >
+                    <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="truncate">Config</span>
+                  </button>
+                  {isMobile && (
+                    <button
+                      onClick={toggleSoloMode}
+                      className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                        soloMode
+                          ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+                          : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+                      }`}
+                      title="Switch to Mobile Vox Client Mode"
+                    >
+                      <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400" />
+                      <span className="truncate">Mobile Mode</span>
+                    </button>
+                  )}
+                </div>
+              </nav>
+            )}
 
             {/* Devices Tab */}
             {activeTab === "devices" && (
@@ -3016,7 +3018,7 @@ export default function App() {
 
                 {/* Dedicated Room Banner when URL is /living_room, /dine_in, /bedroom, /bedroom_2 */}
                 {routeInfo.mode === "room" && routeInfo.room && (
-                  <div className="bg-cyan-500/15 border border-cyan-500/30 rounded-xl p-3.5 mb-5 flex flex-wrap items-center justify-between gap-2 shadow-[0_0_15px_rgba(34,211,238,0.12)]">
+                  <div className="bg-cyan-500/15 border border-cyan-500/30 rounded-xl p-3.5 mb-5 flex items-center justify-between gap-2 shadow-[0_0_15px_rgba(34,211,238,0.12)]">
                     <div className="flex items-center gap-2.5">
                       <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
                       <div>
@@ -3024,21 +3026,10 @@ export default function App() {
                           Dedicated Room View: <span className="text-white font-black">{routeInfo.room.toUpperCase()}</span>
                         </p>
                         <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                          Showing controls exclusively for {routeInfo.room} (URL path: /{routeInfo.room.replace(/\s+/g, "_")})
+                          Restricted access mode (URL path: /{routeInfo.room.replace(/\s+/g, "_")})
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => {
-                        setRouteInfo({ mode: "full" });
-                        if (typeof window !== "undefined") {
-                          window.history.pushState({}, "", "/");
-                        }
-                      }}
-                      className="text-[10px] bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/40 px-3 py-1.5 rounded-lg uppercase tracking-wider font-bold transition-all cursor-pointer"
-                    >
-                      Show All Rooms / Full Dashboard
-                    </button>
                   </div>
                 )}
 
@@ -3184,7 +3175,7 @@ export default function App() {
         {activeTab === "shopping" && (
           <div className="flex flex-col gap-4">
             {routeInfo.mode === "shopping" && (
-              <div className="bg-amber-500/15 border border-amber-500/30 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-2 shadow-[0_0_15px_rgba(245,158,11,0.12)]">
+              <div className="bg-amber-500/15 border border-amber-500/30 rounded-xl p-3.5 flex items-center justify-between gap-2 shadow-[0_0_15px_rgba(245,158,11,0.12)]">
                 <div className="flex items-center gap-2.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
                   <div>
@@ -3192,21 +3183,10 @@ export default function App() {
                       Dedicated Helper View: <span className="text-white font-black">SHOPPING LIST</span>
                     </p>
                     <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                      Focused helper mode (URL path: /helper)
+                      Restricted access mode (URL path: /helper)
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setRouteInfo({ mode: "full" });
-                    if (typeof window !== "undefined") {
-                      window.history.pushState({}, "", "/");
-                    }
-                  }}
-                  className="text-[10px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 px-3 py-1.5 rounded-lg uppercase tracking-wider font-bold transition-all cursor-pointer"
-                >
-                  Open Full Dashboard
-                </button>
               </div>
             )}
             <ShoppingList onAddLog={addLog} />
@@ -3853,10 +3833,12 @@ export default function App() {
         )}
       </div>
 
-      {/* Right Column (4 Cols): Weather & AQI Environmental Panel aligned with Navigation Bar */}
-      <div className="lg:col-span-4 flex flex-col w-full">
-        <WeatherPanel onAddLog={addLog} />
-      </div>
+      {/* Right Column (4 Cols): Weather & AQI Environmental Panel (Only shown when accessed via localhost:3000) */}
+      {isLocalhost && (
+        <div className="lg:col-span-4 flex flex-col w-full">
+          <WeatherPanel onAddLog={addLog} />
+        </div>
+      )}
 
         </div>
       </main>

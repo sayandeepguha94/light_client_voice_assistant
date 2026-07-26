@@ -360,6 +360,31 @@ async function toggleDevicePrompt() {
   }
 }
 
+// Fetch and list central shopping list
+async function listShoppingList() {
+  try {
+    console.log(`\n${colors.bright}Fetching Shopping List from server...${colors.reset}\n`);
+    const response = await fetch(`${SERVER_URL}/api/shopping-list`);
+    if (!response.ok) throw new Error('Failed to fetch shopping list');
+    const items = await response.json();
+
+    if (items.length === 0) {
+      console.log(`${colors.yellow}Shopping list is currently empty.${colors.reset}\n`);
+      return;
+    }
+
+    console.log(`${colors.bright}🛒 SMART SHOPPING LIST (${items.length} items):${colors.reset}`);
+    items.forEach((item) => {
+      const statusIcon = item.completed ? `${colors.green}[✓]` : `${colors.yellow}[ ]`;
+      const textStyle = item.completed ? `${colors.dim}` : `${colors.bright}${colors.cyan}`;
+      console.log(`  ${statusIcon} ${textStyle}${item.text}${colors.reset}`);
+    });
+    console.log();
+  } catch (err) {
+    console.log(`${colors.red}❌ Could not fetch shopping list: ${err.message}${colors.reset}\n`);
+  }
+}
+
 // Modify Server URL
 function updateServerUrlPrompt() {
   rl.question(`\nEnter new Server Base URL (e.g., http://192.168.1.100:3000):\n> `, (url) => {
@@ -382,10 +407,11 @@ function mainLoop() {
 
   console.log(`${colors.bright}👉 SELECT AN OPTION:${colors.reset}`);
   console.log(`  [1] ${colors.bright}${colors.green}🎙️ SPEAK VOICE COMMAND (Record 3 seconds)${colors.reset}`);
-  console.log(`  [2] ${colors.cyan}💬 TYPE CHAT COMMAND (e.g. "turn on bedroom ac")${colors.reset}`);
+  console.log(`  [2] ${colors.cyan}💬 TYPE CHAT COMMAND (e.g. "add milk to shopping list")${colors.reset}`);
   console.log(`  [3] 🏡 LIST ECOSYSTEM DEVICES (Live status reporting)`);
   console.log(`  [4] ⚡ TOGGLE DEVICE MANUALLY`);
-  console.log(`  [5] ⚙️  CHANGE SERVER TARGET IP/URL`);
+  console.log(`  [5] 🛒 VIEW SHOPPING LIST (Central synchronized list)`);
+  console.log(`  [6] ⚙️  CHANGE SERVER TARGET IP/URL`);
   console.log(`  [E] ❌ EXIT`);
   console.log();
   console.log(`${colors.dim}Recorder found: ${deps.rec ? colors.green + 'SoX (rec)' : deps.termuxMic ? colors.green + 'Termux API (native)' : colors.red + 'None (Please install sox or termux-api)'}${colors.reset}`);
@@ -416,6 +442,9 @@ function mainLoop() {
     } else if (opt === '4') {
       toggleDevicePrompt();
     } else if (opt === '5') {
+      await listShoppingList();
+      rl.question(`\nPress Enter to return to menu...`, () => mainLoop());
+    } else if (opt === '6') {
       updateServerUrlPrompt();
     } else if (opt === 'e') {
       console.log(`\nGoodbye! Thanks for using Jerry Voice IoT.\n`);

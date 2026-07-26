@@ -56,6 +56,22 @@ let devices: Device[] = [
   { id: "bedroom 2.high ambient light", name: "High Ambient Light", room: "bedroom 2", deviceKey: "high ambient light", entityId: "switch.bedroom_2_4node_smart_switch_3_high_ambient_light", category: "lighting", on: false, statusText: "Off" }
 ];
 
+// Centralized Shopping List State
+interface ShoppingItem {
+  id: string;
+  text: string;
+  completed: boolean;
+  createdAt: number;
+}
+
+let shoppingList: ShoppingItem[] = [
+  { id: "1", text: "Organic Milk (1 Gallon)", completed: false, createdAt: Date.now() - 3600000 * 5 },
+  { id: "2", text: "Whole Grain Sourdough Bread", completed: true, createdAt: Date.now() - 3600000 * 4 },
+  { id: "3", text: "Free Range Eggs (12 pk)", completed: false, createdAt: Date.now() - 3600000 * 3 },
+  { id: "4", text: "Fresh Avocados & Bananas", completed: false, createdAt: Date.now() - 3600000 * 2 },
+  { id: "5", text: "Dark Roast Coffee Beans", completed: true, createdAt: Date.now() - 3600000 * 1 },
+];
+
 // Helper to update device state
 function applyBackendControl(room: string, deviceKey: string | null, action: string, value?: number) {
   const normalizedRoom = room.toLowerCase();
@@ -164,6 +180,31 @@ function parseCommandRuleBased(text: string) {
   const normalized = text.toLowerCase();
   const commands: any[] = [];
   let response = "Fallback processed.";
+
+  // Check if command is for shopping list
+  if (normalized.includes("shopping") || normalized.includes("grocery") || normalized.includes("buy")) {
+    if (normalized.includes("add") || normalized.includes("buy") || normalized.includes("put")) {
+      let rawItem = normalized;
+      rawItem = rawItem.replace(/^(hey jerry|jerry|please|can you)?\s*(add|put|buy)\s*/i, "");
+      rawItem = rawItem.replace(/\s*(to|on)\s*(the|my)?\s*(shopping|grocery)?\s*list.*$/i, "");
+      rawItem = rawItem.replace(/^(to|on)\s*(the|my)?\s*(shopping|grocery)?\s*list\s*/i, "");
+      rawItem = rawItem.trim();
+
+      if (rawItem) {
+        const formattedItem = rawItem.charAt(0).toUpperCase() + rawItem.slice(1);
+        const newItem: ShoppingItem = {
+          id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
+          text: formattedItem,
+          completed: false,
+          createdAt: Date.now()
+        };
+        shoppingList = [newItem, ...shoppingList];
+        response = `Added "${newItem.text}" to your shopping list.`;
+        commands.push({ type: "shopping_add", item: newItem });
+        return { response, commands };
+      }
+    }
+  }
 
   // Rooms
   const rooms = ["living room", "dine-in", "bedroom", "bedroom 2"];
@@ -278,6 +319,37 @@ app.post("/api/devices/sync-all", (req, res) => {
     return res.json({ success: true, count: devices.length });
   }
   return res.status(400).json({ error: "Invalid devices payload" });
+});
+
+// GET /api/shopping-list - Fetch current shopping list from central server
+app.get("/api/shopping-list", (req, res) => {
+  res.json(shoppingList);
+});
+
+// POST /api/shopping-list - Sync full shopping list state across all devices
+app.post("/api/shopping-list", (req, res) => {
+  const { items } = req.body;
+  if (Array.isArray(items)) {
+    shoppingList = items;
+    return res.json({ success: true, count: shoppingList.length, items: shoppingList });
+  }
+  return res.status(400).json({ error: "Invalid items payload" });
+});
+
+// POST /api/shopping-list/add - Add single item to central shopping list
+app.post("/api/shopping-list/add", (req, res) => {
+  const { text } = req.body;
+  if (!text || typeof text !== "string") {
+    return res.status(400).json({ error: "Missing item text" });
+  }
+  const newItem: ShoppingItem = {
+    id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
+    text: text.trim(),
+    completed: false,
+    createdAt: Date.now()
+  };
+  shoppingList = [newItem, ...shoppingList];
+  return res.json({ success: true, item: newItem, items: shoppingList });
 });
 
 // GET /termux-client.js - Dynamically compiled & pre-configured console client downloader

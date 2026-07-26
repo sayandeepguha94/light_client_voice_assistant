@@ -70,6 +70,42 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({
     }
   }, [externalItems]);
 
+  // Fetch from central backend server & poll every 2 seconds for real-time phone <-> desktop sync
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchServerItems = async () => {
+      try {
+        const res = await fetch("/api/shopping-list");
+        if (res.ok) {
+          const serverData: ShoppingItem[] = await res.json();
+          if (Array.isArray(serverData) && isMounted) {
+            setItems(prevItems => {
+              if (JSON.stringify(serverData) !== JSON.stringify(prevItems)) {
+                try {
+                  localStorage.setItem(STORAGE_KEY, JSON.stringify(serverData));
+                } catch (e) {}
+                if (onItemsChange) onItemsChange(serverData);
+                return serverData;
+              }
+              return prevItems;
+            });
+          }
+        }
+      } catch (e) {
+        // Fallback to localStorage if server is unreachable
+      }
+    };
+
+    fetchServerItems();
+    const interval = setInterval(fetchServerItems, 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Sync with cross-tab / window custom event updates
   useEffect(() => {
     const handleSync = () => {
@@ -93,7 +129,7 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({
     };
   }, []);
 
-  // Save to localStorage on change
+  // Save to localStorage AND sync to backend server on change
   const saveItems = (updated: ShoppingItem[]) => {
     setItems(updated);
     try {
@@ -101,6 +137,14 @@ export const ShoppingList: React.FC<ShoppingListProps> = ({
     } catch (e) {
       console.error("Failed to save shopping list to localStorage", e);
     }
+
+    // Push update to central server so phone and all clients instantly update
+    fetch("/api/shopping-list", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: updated })
+    }).catch(e => console.error("Failed to sync shopping list to server", e));
+
     if (onItemsChange) {
       onItemsChange(updated);
     }

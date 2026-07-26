@@ -2891,7 +2891,7 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
             
             {/* Rooms and Devices Grid Layout */}
-            <div className="lg:col-span-8 bg-[#11131f]/30 border border-white/5 p-6 rounded-2xl flex flex-col justify-between">
+            <div className="lg:col-span-5 bg-[#11131f]/30 border border-white/5 p-6 rounded-2xl flex flex-col justify-between">
               <div>
                 <div className="flex flex-wrap gap-3 justify-between items-center mb-6 pb-3 border-b border-white/5">
                   <h2 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-2">
@@ -3054,7 +3054,7 @@ export default function App() {
             </div>
 
             {/* Weather & AQI Environmental Panel */}
-            <div className="lg:col-span-4 flex flex-col">
+            <div className="lg:col-span-7 flex flex-col">
               <WeatherPanel onAddLog={addLog} />
             </div>
 

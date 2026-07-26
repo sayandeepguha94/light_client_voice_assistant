@@ -2820,86 +2820,86 @@ export default function App() {
         </div>
       </header>
 
-      {/* Navigation Tab Bar */}
-      <nav className="w-full max-w-7xl mx-auto mb-6 px-1">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-8 flex flex-wrap sm:flex-nowrap bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full gap-1">
-            <button
-              onClick={() => setActiveTab("devices")}
-              className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                activeTab === "devices"
-                  ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 shadow-[0_0_15px_rgba(34,211,238,0.12)]"
-                  : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
-              }`}
-            >
-              <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="truncate">Ecosystem Devices</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("shopping")}
-              className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                activeTab === "shopping"
-                  ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
-                  : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
-              }`}
-            >
-              <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="truncate">Shopping List</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("chat")}
-              className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                activeTab === "chat" && !soloMode
-                  ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_15px_rgba(168,85,247,0.12)]"
-                  : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
-              }`}
-            >
-              <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="truncate">Voice Control</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("configurations")}
-              className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                activeTab === "configurations"
-                  ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_15px_rgba(99,102,241,0.12)]"
-                  : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
-              }`}
-            >
-              <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="truncate">Config</span>
-            </button>
-            {isMobile && (
-              <button
-                onClick={toggleSoloMode}
-                className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                  soloMode
-                    ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
-                    : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
-                }`}
-                title="Switch to Mobile Vox Client Mode"
-              >
-                <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400" />
-                <span className="truncate">Mobile Mode</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </nav>
-
-      {/* Primary Content Area */}
+      {/* Primary Navigation & Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto mb-6 px-1">
-        
-        {activeTab === "devices" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          {/* Left Column (8 Cols): Navigation Bar + Active Tab View */}
+          <div className="lg:col-span-8 flex flex-col gap-6 w-full">
             
-            {/* Rooms and Devices Grid Layout */}
-            <div className="lg:col-span-8 bg-[#11131f]/30 border border-white/5 p-6 rounded-2xl flex flex-col justify-between">
-              <div>
-                <div className="flex flex-wrap gap-3 justify-between items-center mb-6 pb-3 border-b border-white/5">
-                  <h2 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-2">
-                    <LayoutGrid className="w-4 h-4 text-cyan-400" />
-                    Physical Devices Layout
-                  </h2>
+            {/* Navigation Tab Bar */}
+            <nav className="bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full">
+              <div className="flex flex-wrap sm:flex-nowrap w-full gap-1">
+                <button
+                  onClick={() => setActiveTab("devices")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                    activeTab === "devices"
+                      ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 shadow-[0_0_15px_rgba(34,211,238,0.12)]"
+                      : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span className="truncate">Ecosystem Devices</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("shopping")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                    activeTab === "shopping"
+                      ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
+                      : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+                  }`}
+                >
+                  <ShoppingCart className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span className="truncate">Shopping List</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("chat")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                    activeTab === "chat" && !soloMode
+                      ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_15px_rgba(168,85,247,0.12)]"
+                      : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+                  }`}
+                >
+                  <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span className="truncate">Voice Control</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("configurations")}
+                  className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                    activeTab === "configurations"
+                      ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_15px_rgba(99,102,241,0.12)]"
+                      : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+                  }`}
+                >
+                  <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span className="truncate">Config</span>
+                </button>
+                {isMobile && (
+                  <button
+                    onClick={toggleSoloMode}
+                    className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                      soloMode
+                        ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+                        : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
+                    }`}
+                    title="Switch to Mobile Vox Client Mode"
+                  >
+                    <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400" />
+                    <span className="truncate">Mobile Mode</span>
+                  </button>
+                )}
+              </div>
+            </nav>
+
+            {/* Devices Tab */}
+            {activeTab === "devices" && (
+              <div className="bg-[#11131f]/30 border border-white/5 p-6 rounded-2xl flex flex-col justify-between">
+                <div>
+                  <div className="flex flex-wrap gap-3 justify-between items-center mb-6 pb-3 border-b border-white/5">
+                    <h2 className="text-xs font-bold tracking-wider text-slate-400 uppercase flex items-center gap-2">
+                      <LayoutGrid className="w-4 h-4 text-cyan-400" />
+                      Physical Devices Layout
+                    </h2>
                   <div className="flex items-center gap-2.5">
                     <button
                       onClick={syncDeviceStates}
@@ -3054,14 +3054,7 @@ export default function App() {
                 <span className="text-emerald-400 font-semibold font-mono">STABLE</span>
               </div>
             </div>
-
-            {/* Weather & AQI Environmental Panel */}
-            <div className="lg:col-span-4 flex flex-col">
-              <WeatherPanel onAddLog={addLog} />
-            </div>
-
-          </div>
-        )}
+          )}
 
         {/* Shopping List Tab */}
         {activeTab === "shopping" && (
@@ -3706,6 +3699,14 @@ export default function App() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Right Column (4 Cols): Weather & AQI Environmental Panel aligned with Navigation Bar */}
+      <div className="lg:col-span-4 flex flex-col w-full">
+        <WeatherPanel onAddLog={addLog} />
+      </div>
+
+        </div>
       </main>
 
     </div>

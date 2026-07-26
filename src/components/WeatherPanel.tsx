@@ -238,7 +238,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({ onAddLog }) => {
         <div className="p-3.5 sm:p-5 flex flex-col gap-4 animate-fadeIn">
           
           {/* Main Forecast & AQI Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             
             {/* Environmental Forecast Card */}
             <div className="bg-gradient-to-br from-cyan-950/40 via-slate-900/80 to-slate-950 border border-cyan-500/20 rounded-xl p-4 flex flex-col justify-between gap-4 relative overflow-hidden">

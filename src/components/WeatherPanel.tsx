@@ -158,30 +158,30 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({ onAddLog }) => {
   };
 
   return (
-    <div className="w-full bg-[#11131f]/50 backdrop-blur-md border border-white/10 rounded-2xl flex flex-col shadow-2xl overflow-hidden">
+    <div className="w-full bg-[#11131f]/60 backdrop-blur-md border border-white/10 rounded-2xl flex flex-col shadow-2xl overflow-hidden">
       
-      {/* Master Collapsible Dropdown Header: Environmental Forecast and AQI */}
+      {/* Master Collapsible Dropdown Header */}
       <div 
         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        className="w-full p-4 sm:p-5 bg-slate-900/80 hover:bg-slate-900/90 transition-colors border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none"
+        className="w-full p-3.5 sm:p-4 bg-slate-900/90 hover:bg-slate-900 transition-colors border-b border-white/10 flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none"
       >
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-cyan-500/15 border border-cyan-500/30 rounded-xl text-cyan-400 shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 bg-cyan-500/15 border border-cyan-500/30 rounded-xl text-cyan-400 shrink-0">
             <CloudSun className="w-5 h-5" />
           </div>
-          <div>
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+          <div className="min-w-0">
+            <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider truncate">
               Environmental Forecast & AQI
             </h3>
-            <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-              REAL-TIME ATMOSPHERIC METRICS, AIR QUALITY, SUNRISE & SUNSET
+            <p className="text-[10px] text-slate-400 font-mono truncate">
+              Live Air Quality, Humidity, Wind & Solar Metrics
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
           {/* City Selector */}
-          <div className="flex items-center gap-1 bg-slate-950 border border-white/15 rounded-xl px-2.5 py-1.5">
+          <div className="flex items-center gap-1.5 bg-slate-950 border border-white/15 rounded-xl px-2.5 py-1.5">
             <MapPin className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
             <select
               value={selectedCityKey}
@@ -191,7 +191,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({ onAddLog }) => {
                   onAddLog("info", `Switched location to ${e.target.value}`);
                 }
               }}
-              className="bg-transparent text-xs text-slate-200 font-semibold focus:outline-none cursor-pointer pr-1"
+              className="bg-transparent text-xs text-slate-200 font-semibold focus:outline-none cursor-pointer"
             >
               {Object.keys(CITIES_WEATHER).map((key) => (
                 <option key={key} value={key} className="bg-slate-900 text-white">
@@ -206,7 +206,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({ onAddLog }) => {
             type="button"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/10 transition-colors cursor-pointer disabled:opacity-50"
+            className="p-1.5 sm:p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/10 transition-colors cursor-pointer disabled:opacity-50"
             title="Refresh environmental data"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-cyan-400" : ""}`} />
@@ -216,16 +216,16 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({ onAddLog }) => {
           <button
             type="button"
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold transition-all ml-1"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-bold transition-all"
           >
             {isDropdownOpen ? (
               <>
-                <ChevronUp className="w-4 h-4 text-cyan-400" />
+                <ChevronUp className="w-4 h-4 text-cyan-400 shrink-0" />
                 <span className="hidden sm:inline">Collapse</span>
               </>
             ) : (
               <>
-                <ChevronDown className="w-4 h-4 text-cyan-400" />
+                <ChevronDown className="w-4 h-4 text-cyan-400 shrink-0" />
                 <span className="hidden sm:inline">Expand</span>
               </>
             )}
@@ -235,38 +235,41 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({ onAddLog }) => {
 
       {/* Dropdown Content Area */}
       {isDropdownOpen && (
-        <div className="p-4 sm:p-5 flex flex-col gap-5 animate-fadeIn">
+        <div className="p-3.5 sm:p-5 flex flex-col gap-4 animate-fadeIn">
           
-          {/* Main Forecast Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* Main Forecast & AQI Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             
-            {/* Current Environmental Forecast Card (7 cols) */}
-            <div className="lg:col-span-7 bg-gradient-to-br from-cyan-950/40 via-slate-900/60 to-slate-950/80 border border-cyan-500/20 rounded-xl p-4 flex flex-col justify-between gap-4 relative overflow-hidden">
+            {/* Environmental Forecast Card */}
+            <div className="bg-gradient-to-br from-cyan-950/40 via-slate-900/80 to-slate-950 border border-cyan-500/20 rounded-xl p-4 flex flex-col justify-between gap-4 relative overflow-hidden">
               <div className="absolute -right-8 -top-8 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
 
-              {/* Location & Temperature without weather logo */}
-              <div className="flex justify-between items-start relative z-10">
-                <div>
-                  <span className="text-xs font-bold text-cyan-400 tracking-wider uppercase flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5" />
-                    Environmental Forecast — {weather.cityName}, {weather.country}
+              {/* Title & Temperature Header */}
+              <div className="flex flex-col gap-2 relative z-10">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-cyan-400 tracking-wider uppercase flex items-center gap-1.5 truncate">
+                    <MapPin className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                    {weather.cityName}, {weather.country}
                   </span>
-                  <div className="flex items-baseline gap-3 mt-2">
-                    <span className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight">
-                      {weather.tempCurrent}°C
-                    </span>
-                    <span className="text-xs text-slate-400 font-mono">
-                      Feels like {weather.feelsLike}°C
-                    </span>
-                  </div>
-                  <p className="text-xs font-medium text-cyan-200/90 mt-1">
-                    {weather.condition}
-                  </p>
+                  <span className="text-[10px] font-mono text-slate-400 bg-black/40 px-2 py-0.5 rounded border border-white/5 shrink-0">
+                    Refreshed {lastRefreshed}
+                  </span>
                 </div>
-                
-                <span className="text-[10px] font-mono text-slate-400 bg-black/40 px-2.5 py-1 rounded-lg border border-white/5">
-                  Refreshed {lastRefreshed}
-                </span>
+
+                <div className="flex items-baseline gap-3 mt-1">
+                  <span className="text-4xl font-extrabold text-white tracking-tight font-mono">
+                    {weather.tempCurrent}°C
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    Feels like {weather.feelsLike}°C
+                  </span>
+                </div>
+
+                <div className="inline-self-start">
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-cyan-400/10 text-cyan-300 border border-cyan-500/20">
+                    {weather.condition}
+                  </span>
+                </div>
               </div>
 
               {/* Environmental Metrics in Stacked Rows */}
@@ -276,66 +279,66 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({ onAddLog }) => {
                 </span>
 
                 {/* Humidity Row */}
-                <div className="flex items-center justify-between bg-black/30 p-2.5 rounded-lg border border-white/5">
-                  <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-between bg-black/40 px-3 py-2 rounded-lg border border-white/5">
+                  <div className="flex items-center gap-2 min-w-0">
                     <Droplets className="w-4 h-4 text-cyan-400 shrink-0" />
-                    <span className="text-xs text-slate-300 font-medium">Humidity</span>
+                    <span className="text-xs text-slate-300 font-medium truncate">Humidity</span>
                   </div>
-                  <span className="font-bold text-slate-100 font-mono text-xs">{weather.humidity}%</span>
+                  <span className="font-bold text-slate-100 font-mono text-xs shrink-0 whitespace-nowrap">{weather.humidity}%</span>
                 </div>
 
                 {/* Wind Row */}
-                <div className="flex items-center justify-between bg-black/30 p-2.5 rounded-lg border border-white/5">
-                  <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-between bg-black/40 px-3 py-2 rounded-lg border border-white/5">
+                  <div className="flex items-center gap-2 min-w-0">
                     <Wind className="w-4 h-4 text-blue-400 shrink-0" />
-                    <span className="text-xs text-slate-300 font-medium">Wind Speed</span>
+                    <span className="text-xs text-slate-300 font-medium truncate">Wind Speed</span>
                   </div>
-                  <span className="font-bold text-slate-100 font-mono text-xs">{weather.windSpeed} km/h</span>
+                  <span className="font-bold text-slate-100 font-mono text-xs shrink-0 whitespace-nowrap">{weather.windSpeed} km/h</span>
                 </div>
 
                 {/* Visibility Row */}
-                <div className="flex items-center justify-between bg-black/30 p-2.5 rounded-lg border border-white/5">
-                  <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-between bg-black/40 px-3 py-2 rounded-lg border border-white/5">
+                  <div className="flex items-center gap-2 min-w-0">
                     <Eye className="w-4 h-4 text-indigo-400 shrink-0" />
-                    <span className="text-xs text-slate-300 font-medium">Visibility</span>
+                    <span className="text-xs text-slate-300 font-medium truncate">Visibility</span>
                   </div>
-                  <span className="font-bold text-slate-100 font-mono text-xs">{weather.visibility}</span>
+                  <span className="font-bold text-slate-100 font-mono text-xs shrink-0 whitespace-nowrap">{weather.visibility}</span>
                 </div>
               </div>
             </div>
 
-            {/* Air Quality Index (AQI) Card in Stacked Rows (5 cols) */}
-            <div className="lg:col-span-5 bg-slate-900/60 border border-white/10 rounded-xl p-4 flex flex-col justify-between gap-3">
-              <div className="flex justify-between items-center pb-2 border-b border-white/10">
-                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+            {/* Air Quality Index (AQI) Card */}
+            <div className="bg-slate-900/80 border border-white/10 rounded-xl p-4 flex flex-col justify-between gap-3">
+              <div className="flex items-center justify-between pb-2 border-b border-white/10 gap-2">
+                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 truncate">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   Air Quality Index (AQI)
                 </span>
-                <span className={`text-[10px] font-bold font-mono px-2.5 py-0.5 rounded-full border ${weather.aqi.color}`}>
+                <span className={`text-[10px] font-bold font-mono px-2.5 py-0.5 rounded-full border shrink-0 whitespace-nowrap ${weather.aqi.color}`}>
                   {weather.aqi.status}
                 </span>
               </div>
 
               {/* AQI Breakdown in Stacked Rows */}
               <div className="flex flex-col gap-2 my-1">
-                <div className="flex items-center justify-between bg-black/40 p-2.5 rounded-lg border border-white/5">
-                  <span className="text-xs text-slate-400">AQI Score (US Scale)</span>
-                  <span className="font-black text-white font-mono text-base">{weather.aqi.value}</span>
+                <div className="flex items-center justify-between bg-black/40 px-3 py-2 rounded-lg border border-white/5">
+                  <span className="text-xs text-slate-400 truncate">AQI Score (US Scale)</span>
+                  <span className="font-black text-white font-mono text-sm shrink-0 whitespace-nowrap">{weather.aqi.value}</span>
                 </div>
 
-                <div className="flex items-center justify-between bg-black/40 p-2.5 rounded-lg border border-white/5">
-                  <span className="text-xs text-slate-400">PM2.5 Concentration</span>
-                  <span className="font-bold text-amber-300 font-mono text-xs">{weather.aqi.pm25} µg/m³</span>
+                <div className="flex items-center justify-between bg-black/40 px-3 py-2 rounded-lg border border-white/5">
+                  <span className="text-xs text-slate-400 truncate">PM2.5 Level</span>
+                  <span className="font-bold text-amber-300 font-mono text-xs shrink-0 whitespace-nowrap">{weather.aqi.pm25} µg/m³</span>
                 </div>
 
-                <div className="flex items-center justify-between bg-black/40 p-2.5 rounded-lg border border-white/5">
-                  <span className="text-xs text-slate-400">PM10 Concentration</span>
-                  <span className="font-bold text-orange-300 font-mono text-xs">{weather.aqi.pm10} µg/m³</span>
+                <div className="flex items-center justify-between bg-black/40 px-3 py-2 rounded-lg border border-white/5">
+                  <span className="text-xs text-slate-400 truncate">PM10 Level</span>
+                  <span className="font-bold text-orange-300 font-mono text-xs shrink-0 whitespace-nowrap">{weather.aqi.pm10} µg/m³</span>
                 </div>
               </div>
 
               {/* AQI Indicator Bar */}
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 pt-1">
                 <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden flex border border-white/5">
                   <div className="h-full bg-emerald-400" style={{ width: '20%' }} title="Good (0-50)" />
                   <div className="h-full bg-amber-400" style={{ width: '20%' }} title="Moderate (51-100)" />
@@ -352,40 +355,40 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({ onAddLog }) => {
 
           </div>
 
-          {/* Sunrise & Sunset Times Banner in Rows */}
-          <div className="bg-slate-900/40 border border-white/10 rounded-xl p-3.5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Sunrise, Sunset & Daylight Banner */}
+          <div className="bg-slate-900/60 border border-white/10 rounded-xl p-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             
             {/* Sunrise Row */}
-            <div className="flex items-center justify-between bg-amber-500/5 border border-amber-500/20 p-2.5 rounded-lg">
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 bg-amber-500/15 rounded-lg text-amber-400">
+            <div className="flex items-center justify-between bg-amber-500/5 border border-amber-500/20 px-3 py-2.5 rounded-lg">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="p-1.5 bg-amber-500/15 rounded-lg text-amber-400 shrink-0">
                   <Sunrise className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-semibold text-slate-300">Sunrise</span>
+                <span className="text-xs font-semibold text-slate-300 truncate">Sunrise</span>
               </div>
-              <span className="text-xs font-bold text-amber-300 font-mono">{weather.sunTimes.sunrise}</span>
+              <span className="text-xs font-bold text-amber-300 font-mono shrink-0 whitespace-nowrap ml-2">{weather.sunTimes.sunrise}</span>
             </div>
 
             {/* Sunset Row */}
-            <div className="flex items-center justify-between bg-indigo-500/5 border border-indigo-500/20 p-2.5 rounded-lg">
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 bg-indigo-500/15 rounded-lg text-indigo-400">
+            <div className="flex items-center justify-between bg-indigo-500/5 border border-indigo-500/20 px-3 py-2.5 rounded-lg">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="p-1.5 bg-indigo-500/15 rounded-lg text-indigo-400 shrink-0">
                   <Sunset className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-semibold text-slate-300">Sunset</span>
+                <span className="text-xs font-semibold text-slate-300 truncate">Sunset</span>
               </div>
-              <span className="text-xs font-bold text-indigo-300 font-mono">{weather.sunTimes.sunset}</span>
+              <span className="text-xs font-bold text-indigo-300 font-mono shrink-0 whitespace-nowrap ml-2">{weather.sunTimes.sunset}</span>
             </div>
 
             {/* Daylight Duration Row */}
-            <div className="flex items-center justify-between bg-cyan-500/5 border border-cyan-500/20 p-2.5 rounded-lg">
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 bg-cyan-500/15 rounded-lg text-cyan-400">
+            <div className="flex items-center justify-between bg-cyan-500/5 border border-cyan-500/20 px-3 py-2.5 rounded-lg">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="p-1.5 bg-cyan-500/15 rounded-lg text-cyan-400 shrink-0">
                   <Sun className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-semibold text-slate-300">Daylight</span>
+                <span className="text-xs font-semibold text-slate-300 truncate">Daylight</span>
               </div>
-              <span className="text-xs font-bold text-cyan-300 font-mono">{weather.sunTimes.dayLength}</span>
+              <span className="text-xs font-bold text-cyan-300 font-mono shrink-0 whitespace-nowrap ml-2">{weather.sunTimes.dayLength}</span>
             </div>
 
           </div>

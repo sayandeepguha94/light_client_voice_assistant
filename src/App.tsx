@@ -2822,10 +2822,11 @@ export default function App() {
 
       {/* Navigation Tab Bar */}
       <nav className="w-full max-w-7xl mx-auto mb-6 px-1">
-          <div className="grid grid-cols-2 sm:grid-cols-5 md:flex bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full md:w-max gap-1">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-8 flex flex-wrap sm:flex-nowrap bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full gap-1">
             <button
               onClick={() => setActiveTab("devices")}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                 activeTab === "devices"
                   ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 shadow-[0_0_15px_rgba(34,211,238,0.12)]"
                   : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
@@ -2836,7 +2837,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab("shopping")}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                 activeTab === "shopping"
                   ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
                   : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
@@ -2847,7 +2848,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab("chat")}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                 activeTab === "chat" && !soloMode
                   ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_15px_rgba(168,85,247,0.12)]"
                   : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
@@ -2858,7 +2859,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab("configurations")}
-              className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                 activeTab === "configurations"
                   ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_15px_rgba(99,102,241,0.12)]"
                   : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
@@ -2870,7 +2871,7 @@ export default function App() {
             {isMobile && (
               <button
                 onClick={toggleSoloMode}
-                className={`flex-1 md:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                   soloMode
                     ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
                     : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
@@ -2882,7 +2883,8 @@ export default function App() {
               </button>
             )}
           </div>
-        </nav>
+        </div>
+      </nav>
 
       {/* Primary Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto mb-6 px-1">

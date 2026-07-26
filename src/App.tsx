@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, FormEvent } from "react";
+import { useState, useEffect, useRef, useMemo, FormEvent } from "react";
 import { 
   Mic, MicOff, Power, RefreshCw, Volume2, VolumeX, Terminal, 
   Settings, HelpCircle, LayoutGrid, CheckCircle2, AlertCircle, 
@@ -895,7 +895,58 @@ void uploadAndProcessVoice(uint8_t* buffer, int length) {
   }
 };
 
+// Path-based Route Parser
+// Handles /helper or /shopping -> Shopping List
+// Handles /living_room, /dine_in, /bedroom, /bedroom_2 -> Dedicated Room View
+export function parseRouteFromPath(
+  path: string, 
+  availableRooms: string[] = ["living room", "dine-in", "bedroom", "bedroom 2"]
+): { mode: "full" | "shopping" | "room"; room?: string } {
+  const cleanPath = path.toLowerCase().replace(/^\/+|\/+$/g, "");
+  
+  if (!cleanPath || cleanPath === "index.html") {
+    return { mode: "full" };
+  }
+  
+  if (
+    cleanPath === "helper" || 
+    cleanPath === "shopping" || 
+    cleanPath === "shoppinglist" || 
+    cleanPath === "shopping_list"
+  ) {
+    return { mode: "shopping" };
+  }
+
+  const normalized = cleanPath.replace(/_/g, " ").replace(/-/g, " ");
+
+  for (const r of availableRooms) {
+    const roomSlug1 = r.toLowerCase().replace(/\s+/g, "_"); // living_room, dine_in, bedroom_2
+    const roomSlug2 = r.toLowerCase().replace(/\s+/g, "-"); // living-room, dine-in, bedroom-2
+    const roomSlug3 = r.toLowerCase().replace(/[\s_-]+/g, ""); // livingroom, dinein, bedroom2
+
+    if (
+      cleanPath === roomSlug1 ||
+      cleanPath === roomSlug2 ||
+      cleanPath === roomSlug3 ||
+      normalized === r.toLowerCase() ||
+      normalized === r.toLowerCase().replace(/-/g, " ")
+    ) {
+      return { mode: "room", room: r };
+    }
+  }
+
+  return { mode: "full" };
+}
+
 export default function App() {
+  // Route state derived from URL path (e.g. /helper -> shopping, /living_room -> living room)
+  const [routeInfo, setRouteInfo] = useState<{ mode: "full" | "shopping" | "room"; room?: string }>(() => {
+    if (typeof window !== "undefined") {
+      return parseRouteFromPath(window.location.pathname);
+    }
+    return { mode: "full" };
+  });
+
   // Check if accessed by localhost
   const isLocalhost = typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
@@ -912,6 +963,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<"devices" | "shopping" | "chat" | "configurations">(
     () => {
       if (typeof window !== "undefined") {
+        const route = parseRouteFromPath(window.location.pathname);
+        if (route.mode === "shopping") return "shopping";
+        if (route.mode === "room") return "devices";
         const params = new URLSearchParams(window.location.search);
         if (params.get("mode") === "voice" || params.get("esp32") === "true" || params.get("solo") === "true") {
           return "chat";
@@ -920,6 +974,24 @@ export default function App() {
       return "devices";
     }
   );
+
+  // Synchronize route changes via popstate (browser back/forward navigation)
+  useEffect(() => {
+    const handleLocationChange = () => {
+      if (typeof window !== "undefined") {
+        const route = parseRouteFromPath(window.location.pathname);
+        setRouteInfo(route);
+        if (route.mode === "shopping") {
+          setActiveTab("shopping");
+        } else if (route.mode === "room") {
+          setActiveTab("devices");
+        }
+      }
+    };
+
+    window.addEventListener("popstate", handleLocationChange);
+    return () => window.removeEventListener("popstate", handleLocationChange);
+  }, []);
 
   const toggleSoloMode = () => {
     setSoloMode(prev => {
@@ -942,6 +1014,14 @@ export default function App() {
 
   // Core App States
   const [devices, setDevices] = useState<Device[]>(INITIAL_DEVICES);
+
+  // Filtered devices depending on URL route mode (/living_room, /dine_in, /bedroom, /bedroom_2)
+  const displayedDevices = useMemo(() => {
+    if (routeInfo.mode === "room" && routeInfo.room) {
+      return devices.filter(d => d.room.toLowerCase() === routeInfo.room!.toLowerCase());
+    }
+    return devices;
+  }, [devices, routeInfo]);
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [config, setConfig] = useState<ConnectionConfig>({
     serverIp: "192.168.29.112",
@@ -2831,7 +2911,11 @@ export default function App() {
             <nav className="bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full">
               <div className="flex flex-wrap sm:flex-nowrap w-full gap-1">
                 <button
-                  onClick={() => setActiveTab("devices")}
+                  onClick={() => {
+                    setRouteInfo({ mode: "full" });
+                    setActiveTab("devices");
+                    if (typeof window !== "undefined") window.history.pushState({}, "", "/");
+                  }}
                   className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                     activeTab === "devices"
                       ? "bg-cyan-500/15 text-cyan-400 border border-cyan-500/25 shadow-[0_0_15px_rgba(34,211,238,0.12)]"
@@ -2842,7 +2926,11 @@ export default function App() {
                   <span className="truncate">Ecosystem Devices</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab("shopping")}
+                  onClick={() => {
+                    setRouteInfo({ mode: "full" });
+                    setActiveTab("shopping");
+                    if (typeof window !== "undefined") window.history.pushState({}, "", "/");
+                  }}
                   className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                     activeTab === "shopping"
                       ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_15px_rgba(245,158,11,0.12)]"
@@ -2853,7 +2941,11 @@ export default function App() {
                   <span className="truncate">Shopping List</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab("chat")}
+                  onClick={() => {
+                    setRouteInfo({ mode: "full" });
+                    setActiveTab("chat");
+                    if (typeof window !== "undefined") window.history.pushState({}, "", "/");
+                  }}
                   className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                     activeTab === "chat" && !soloMode
                       ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_15px_rgba(168,85,247,0.12)]"
@@ -2864,7 +2956,11 @@ export default function App() {
                   <span className="truncate">Voice Control</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab("configurations")}
+                  onClick={() => {
+                    setRouteInfo({ mode: "full" });
+                    setActiveTab("configurations");
+                    if (typeof window !== "undefined") window.history.pushState({}, "", "/");
+                  }}
                   className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
                     activeTab === "configurations"
                       ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_15px_rgba(99,102,241,0.12)]"
@@ -2913,20 +3009,48 @@ export default function App() {
                       <span>{isSyncing ? "Syncing..." : "Sync Live Status"}</span>
                     </button>
                     <span className="text-[10px] bg-cyan-400/10 text-cyan-400 px-2.5 py-1.5 rounded-full font-bold">
-                      {devices.filter(d => d.on).length} / {devices.length} ACTIVE
+                      {displayedDevices.filter(d => d.on).length} / {displayedDevices.length} ACTIVE
                     </span>
                   </div>
                 </div>
 
+                {/* Dedicated Room Banner when URL is /living_room, /dine_in, /bedroom, /bedroom_2 */}
+                {routeInfo.mode === "room" && routeInfo.room && (
+                  <div className="bg-cyan-500/15 border border-cyan-500/30 rounded-xl p-3.5 mb-5 flex flex-wrap items-center justify-between gap-2 shadow-[0_0_15px_rgba(34,211,238,0.12)]">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+                      <div>
+                        <p className="text-xs font-mono text-cyan-300 font-bold uppercase tracking-wider">
+                          Dedicated Room View: <span className="text-white font-black">{routeInfo.room.toUpperCase()}</span>
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          Showing controls exclusively for {routeInfo.room} (URL path: /{routeInfo.room.replace(/\s+/g, "_")})
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setRouteInfo({ mode: "full" });
+                        if (typeof window !== "undefined") {
+                          window.history.pushState({}, "", "/");
+                        }
+                      }}
+                      className="text-[10px] bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-500/40 px-3 py-1.5 rounded-lg uppercase tracking-wider font-bold transition-all cursor-pointer"
+                    >
+                      Show All Rooms / Full Dashboard
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex flex-col gap-5">
                   {(Object.entries(
-                    devices.reduce((acc, dev) => {
+                    displayedDevices.reduce((acc, dev) => {
                       if (!acc[dev.room]) acc[dev.room] = [];
                       acc[dev.room].push(dev);
                       return acc;
                     }, {} as Record<string, Device[]>)
                   ) as Array<[string, Device[]]>).map(([roomName, roomDevs]) => {
-                    const isExpanded = !!expandedRooms[roomName];
+                    const isExpanded = routeInfo.mode === "room" ? true : !!expandedRooms[roomName];
                     const activeCount = roomDevs.filter(d => d.on).length;
                     
                     return (
@@ -3058,7 +3182,35 @@ export default function App() {
 
         {/* Shopping List Tab */}
         {activeTab === "shopping" && (
-          <ShoppingList onAddLog={addLog} />
+          <div className="flex flex-col gap-4">
+            {routeInfo.mode === "shopping" && (
+              <div className="bg-amber-500/15 border border-amber-500/30 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-2 shadow-[0_0_15px_rgba(245,158,11,0.12)]">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+                  <div>
+                    <p className="text-xs font-mono text-amber-300 font-bold uppercase tracking-wider">
+                      Dedicated Helper View: <span className="text-white font-black">SHOPPING LIST</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                      Focused helper mode (URL path: /helper)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setRouteInfo({ mode: "full" });
+                    if (typeof window !== "undefined") {
+                      window.history.pushState({}, "", "/");
+                    }
+                  }}
+                  className="text-[10px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 px-3 py-1.5 rounded-lg uppercase tracking-wider font-bold transition-all cursor-pointer"
+                >
+                  Open Full Dashboard
+                </button>
+              </div>
+            )}
+            <ShoppingList onAddLog={addLog} />
+          </div>
         )}
 
         {/* Legacy Schedules Removed */}

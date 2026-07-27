@@ -1023,30 +1023,11 @@ export default function App() {
     return devices;
   }, [devices, routeInfo]);
   const [logs, setLogs] = useState<SystemLog[]>([]);
-
-  // Initialize config from environment variables if available
-  const [config, setConfig] = useState<ConnectionConfig>(() => {
-    const envUrl = import.meta.env.VITE_APP_URL;
-    const defaultConfig = {
-      serverIp: "192.168.29.112",
-      serverPort: "3000",
-      useProxy: false,
-      apiPath: "/api"
-    };
-
-    if (envUrl) {
-      try {
-        const url = new URL(envUrl);
-        return {
-          ...defaultConfig,
-          serverIp: url.hostname,
-          serverPort: url.port || (url.protocol === "https:" ? "443" : "80"),
-        };
-      } catch (e) {
-        console.error("Failed to parse VITE_APP_URL from .env:", e);
-      }
-    }
-    return defaultConfig;
+  const [config, setConfig] = useState<ConnectionConfig>({
+    serverIp: "192.168.29.112",
+    serverPort: "8000",
+    useProxy: false,
+    apiPath: "/api"
   });
 
   // Assistant states

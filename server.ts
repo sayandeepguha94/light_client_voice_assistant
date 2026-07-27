@@ -70,6 +70,27 @@ let devices: Device[] = [
   { id: "bedroom 2.high ambient light", name: "High Ambient Light", room: "bedroom 2", deviceKey: "high ambient light", entityId: "switch.bedroom_2_4node_smart_switch_3_high_ambient_light", category: "lighting", on: false, statusText: "Off" }
 ];
 
+// Centralized User State
+interface User {
+  id: string;
+  name: string;
+  username: string;
+  password?: string;
+  role: "admin" | "user";
+  allowed_pages?: string[];
+  allowed_devices?: string[];
+}
+
+const users: User[] = [
+  {
+    id: "admin-1",
+    name: "System Admin",
+    username: "admin",
+    password: "admin0466",
+    role: "admin"
+  }
+];
+
 // Centralized Shopping List State
 interface ShoppingItem {
   id: string;
@@ -308,6 +329,35 @@ function parseCommandRuleBased(text: string) {
   response = `${action === "turn_on" ? "Turning on" : "Turning off"} the ${matchedDevice} in the ${matchedRoom}.`;
   return { response, commands };
 }
+
+// POST /api/auth/login - Authenticate user
+app.post("/api/auth/login", (req, res) => {
+  const { username, password } = req.body;
+  const user = users.find(u => u.username === username && u.password === password);
+  if (!user) {
+    return res.status(401).json({ error: "Invalid username or password" });
+  }
+  // Mock token for simplicity
+  const token = `mock-jwt-token-${user.id}`;
+  const { password: _, ...userWithoutPassword } = user;
+  res.json({ token, user: userWithoutPassword });
+});
+
+// GET /api/auth/me - Get current user profile
+app.get("/api/auth/me", (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const token = authHeader.split(" ")[1];
+  const userId = token.replace("mock-jwt-token-", "");
+  const user = users.find(u => u.id === userId);
+  if (!user) {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+  const { password: _, ...userWithoutPassword } = user;
+  res.json(userWithoutPassword);
+});
 
 // GET /api/devices - Fetch current state of all devices
 app.get("/api/devices", (req, res) => {

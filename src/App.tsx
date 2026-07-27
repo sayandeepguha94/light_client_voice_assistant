@@ -1029,7 +1029,7 @@ export default function App() {
     const envUrl = import.meta.env.VITE_APP_URL;
     const defaultConfig = {
       serverIp: "192.168.29.112",
-      serverPort: "8000",
+      serverPort: "3000",
       useProxy: false,
       apiPath: "/api"
     };

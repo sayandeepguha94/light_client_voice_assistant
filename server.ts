@@ -91,6 +91,34 @@ const users: User[] = [
   }
 ];
 
+const USERS_FILE = path.join(process.cwd(), "users.json");
+
+function loadUsers() {
+  try {
+    if (fs.existsSync(USERS_FILE)) {
+      const data = fs.readFileSync(USERS_FILE, "utf8");
+      const loaded = JSON.parse(data);
+      if (Array.isArray(loaded)) {
+        // Clear array and push all to keep reference
+        users.length = 0;
+        users.push(...loaded);
+        // Ensure admin always exists
+        if (!users.find(u => u.username === "admin")) {
+          users.push({ id: "admin-1", name: "System Admin", username: "admin", password: "admin0466", role: "admin" });
+        }
+      }
+    }
+  } catch (e) { console.error("Failed to load users", e); }
+}
+
+function saveUsers() {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf8");
+  } catch (e) { console.error("Failed to save users", e); }
+}
+
+loadUsers();
+
 // Centralized Shopping List State
 interface ShoppingItem {
   id: string;
@@ -357,6 +385,49 @@ app.get("/api/auth/me", (req, res) => {
   }
   const { password: _, ...userWithoutPassword } = user;
   res.json(userWithoutPassword);
+});
+
+// GET /api/users - List all users (Admin only in production, here simple)
+app.get("/api/users", (req, res) => {
+  const publicUsers = users.map(u => {
+    const { password: _, ...userWithoutPassword } = u;
+    return userWithoutPassword;
+  });
+  res.json(publicUsers);
+});
+
+// POST /api/users - Create a new user
+app.post("/api/users", (req, res) => {
+  const { username, password, name, allowed_pages, allowed_devices } = req.body;
+  if (!username || !password) return res.status(400).json({ error: "Username and password required" });
+  if (users.find(u => u.username === username.toLowerCase())) {
+    return res.status(409).json({ error: "User already exists" });
+  }
+  const newUser: User = {
+    id: `user-${Date.now()}`,
+    username: username.toLowerCase(),
+    password,
+    name: name || username,
+    role: "user",
+    allowed_pages: allowed_pages || ["dashboard"],
+    allowed_devices: allowed_devices || []
+  };
+  users.push(newUser);
+  saveUsers();
+  const { password: _, ...userWithoutPassword } = newUser;
+  res.json(userWithoutPassword);
+});
+
+// DELETE /api/users/:id - Delete a user
+app.delete("/api/users/:id", (req, res) => {
+  const { id } = req.params;
+  const index = users.findIndex(u => u.id === id);
+  if (index === -1) return res.status(404).json({ error: "User not found" });
+  if (users[index].username === "admin") return res.status(400).json({ error: "Cannot delete admin" });
+
+  users.splice(index, 1);
+  saveUsers();
+  res.json({ success: true });
 });
 
 // GET /api/devices - Fetch current state of all devices

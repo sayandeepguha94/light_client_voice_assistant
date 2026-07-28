@@ -135,6 +135,38 @@ let shoppingList: ShoppingItem[] = [
   { id: "5", text: "Dark Roast Coffee Beans", completed: true, createdAt: Date.now() - 3600000 * 1 },
 ];
 
+const SUGGESTIONS_FILE = path.join(process.cwd(), "suggestions.json");
+const INITIAL_SUGGESTIONS = [
+  "potato / আলু", "tomato / টমেটো", "onion / পেঁয়াজ", "milk / দুধ", "Ginger / আদা",
+  "garlic / রসুন", "Green vegies / সবুজ সবজি", "Chicken / মুরগির মাংস", "Katla Fish / কাতলা মাছ",
+  "Lote fish / লোটে মাছ", "Chingri Fish / চিংড়ি মাছ", "Hilsa Fish / ইলিশ মাছ", "Masala / মশলা",
+  "Egg / ডিম", "Capcicum / ক্যাপসিকাম", "Beans / বিনস", "Carrot / গাজর", "Rice / চাল",
+  "Protine Atta / প্রোটিন আটা"
+];
+
+let suggestions: string[] = [...INITIAL_SUGGESTIONS];
+
+function loadSuggestions() {
+  try {
+    if (fs.existsSync(SUGGESTIONS_FILE)) {
+      const data = fs.readFileSync(SUGGESTIONS_FILE, "utf8");
+      const loaded = JSON.parse(data);
+      if (Array.isArray(loaded)) {
+        suggestions.length = 0;
+        suggestions.push(...loaded);
+      }
+    }
+  } catch (e) { console.error("Failed to load suggestions", e); }
+}
+
+function saveSuggestions() {
+  try {
+    fs.writeFileSync(SUGGESTIONS_FILE, JSON.stringify(suggestions, null, 2), "utf8");
+  } catch (e) { console.error("Failed to save suggestions", e); }
+}
+
+loadSuggestions();
+
 // Helper to update device state
 function applyBackendControl(room: string, deviceKey: string | null, action: string, value?: number) {
   const normalizedRoom = room.toLowerCase();
@@ -485,6 +517,22 @@ app.post("/api/shopping-list/add", (req, res) => {
   };
   shoppingList = [newItem, ...shoppingList];
   return res.json({ success: true, item: newItem, items: shoppingList });
+});
+
+// GET /api/shopping-suggestions - Fetch quick items
+app.get("/api/shopping-suggestions", (req, res) => {
+  res.json(suggestions);
+});
+
+// POST /api/shopping-suggestions - Add a new quick item (Admin only logic on frontend)
+app.post("/api/shopping-suggestions", (req, res) => {
+  const { text } = req.body;
+  if (!text || typeof text !== "string") return res.status(400).json({ error: "Text required" });
+  if (!suggestions.includes(text.trim())) {
+    suggestions.push(text.trim());
+    saveSuggestions();
+  }
+  res.json(suggestions);
 });
 
 // GET /termux-client.js - Dynamically compiled & pre-configured console client downloader

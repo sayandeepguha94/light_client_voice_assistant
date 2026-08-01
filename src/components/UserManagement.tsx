@@ -7,7 +7,6 @@ import {
   Shield,
   ShieldCheck,
   Smartphone,
-  SmartphoneOff,
   User as UserIcon,
   X,
   Check,
@@ -24,13 +23,39 @@ interface UserManagementProps {
   onLog: (type: "info" | "success" | "warning" | "error", msg: string, details?: string) => void;
 }
 
+const SECURITY_STORAGE_KEY = "jerry_global_security_passwords";
+
+const getStoredPasswords = (): Passwords | null => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const stored = window.localStorage.getItem(SECURITY_STORAGE_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as Partial<Passwords>;
+    return {
+      home: parsed.home ?? "",
+      list: parsed.list ?? "",
+      admin: parsed.admin ?? "",
+    };
+  } catch {
+    return null;
+  }
+};
+
+const persistPasswords = (nextPasswords: Passwords) => {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(SECURITY_STORAGE_KEY, JSON.stringify(nextPasswords));
+    window.dispatchEvent(new CustomEvent("jerry-security-updated", { detail: nextPasswords }));
+  }
+};
+
 export default function UserManagement({ onLog }: UserManagementProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
 
   // App Config / Passwords State
-  const [passwords, setPasswords] = useState<Passwords>({ home: "", list: "", admin: "" });
+  const [passwords, setPasswords] = useState<Passwords>(() => getStoredPasswords() ?? { home: "", list: "", admin: "" });
   const [isSavingPasswords, setIsSavingPasswords] = useState(false);
 
   // New User Form State
@@ -45,8 +70,39 @@ export default function UserManagement({ onLog }: UserManagementProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const storedPasswords = getStoredPasswords();
+    if (storedPasswords) {
+      setPasswords(storedPasswords);
+    }
+
+    const handleStorageSync = (event: StorageEvent) => {
+      if (event.key === SECURITY_STORAGE_KEY && event.newValue) {
+        try {
+          const nextPasswords = JSON.parse(event.newValue) as Passwords;
+          setPasswords(nextPasswords);
+        } catch {
+          // Ignore invalid storage payloads
+        }
+      }
+    };
+
+    const handleFrontendSync = (event: Event) => {
+      const customEvent = event as CustomEvent<Passwords>;
+      if (customEvent.detail) {
+        setPasswords(customEvent.detail);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageSync);
+    window.addEventListener("jerry-security-updated", handleFrontendSync as EventListener);
+
     fetchUsers();
     fetchPasswords();
+
+    return () => {
+      window.removeEventListener("storage", handleStorageSync);
+      window.removeEventListener("jerry-security-updated", handleFrontendSync as EventListener);
+    };
   }, []);
 
   const fetchUsers = async () => {
@@ -71,7 +127,13 @@ export default function UserManagement({ onLog }: UserManagementProps) {
       const res = await fetch("/api/admin/passwords");
       if (res.ok) {
         const data = await res.json();
-        setPasswords(data);
+        const nextPasswords: Passwords = {
+          home: data.home ?? "",
+          list: data.list ?? "",
+          admin: data.admin ?? "",
+        };
+        setPasswords(nextPasswords);
+        persistPasswords(nextPasswords);
       }
     } catch (err: any) {
       console.error("Failed to fetch app passwords", err);
@@ -80,6 +142,8 @@ export default function UserManagement({ onLog }: UserManagementProps) {
 
   const handleSavePasswords = async () => {
     setIsSavingPasswords(true);
+    persistPasswords(passwords);
+
     try {
       const res = await fetch("/api/admin/passwords", {
         method: "POST",
@@ -227,7 +291,7 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                         : "bg-slate-800/50 border-white/5 text-slate-500"
                     }`}
                   >
-                    {formData.mobileAccess ? <Smartphone className="w-4 h-4" /> : <SmartphoneOff className="w-4 h-4" />}
+                    {formData.mobileAccess ? <Smartphone className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                     <span className="text-[10px] font-bold uppercase tracking-wider">Mobile App Access</span>
                   </button>
                 </div>
@@ -310,7 +374,7 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                             ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
                             : "bg-slate-900 text-slate-600 border border-white/5"
                         }`}>
-                          {user.mobileAccess ? <Smartphone className="w-3 h-3" /> : <SmartphoneOff className="w-3 h-3" />}
+                          {user.mobileAccess ? <Smartphone className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
                           {user.mobileAccess ? "Jerry Mobile ACTIVE" : "Restricted"}
                         </div>
                       </td>
@@ -358,7 +422,11 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                 <input
                   type="text"
                   value={passwords.home}
-                  onChange={e => setPasswords({...passwords, home: e.target.value})}
+                  onChange={e => {
+                    const nextPasswords = { ...passwords, home: e.target.value };
+                    setPasswords(nextPasswords);
+                    persistPasswords(nextPasswords);
+                  }}
                   className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg pl-9 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
                   placeholder="home0466"
                 />
@@ -377,7 +445,11 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                 <input
                   type="text"
                   value={passwords.list}
-                  onChange={e => setPasswords({...passwords, list: e.target.value})}
+                  onChange={e => {
+                    const nextPasswords = { ...passwords, list: e.target.value };
+                    setPasswords(nextPasswords);
+                    persistPasswords(nextPasswords);
+                  }}
                   className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg pl-9 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
                   placeholder="list0466"
                 />
@@ -396,7 +468,11 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                 <input
                   type="text"
                   value={passwords.admin}
-                  onChange={e => setPasswords({...passwords, admin: e.target.value})}
+                  onChange={e => {
+                    const nextPasswords = { ...passwords, admin: e.target.value };
+                    setPasswords(nextPasswords);
+                    persistPasswords(nextPasswords);
+                  }}
                   className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg pl-9 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
                   placeholder="[System Default]"
                 />

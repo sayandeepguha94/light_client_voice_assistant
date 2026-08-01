@@ -1017,7 +1017,7 @@ export default function App() {
   const [configAuthError, setConfigAuthError] = useState(false);
   const [isVerifyingConfig, setIsVerifyingConfig] = useState(false);
 
-  const handleConfigAuth = async (e: React.FormEvent) => {
+  const handleConfigAuth = async (e: FormEvent) => {
     e.preventDefault();
     setIsVerifyingConfig(true);
     setConfigAuthError(false);

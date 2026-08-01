@@ -7,7 +7,6 @@ import {
   Shield,
   ShieldCheck,
   Smartphone,
-  SmartphoneOff,
   User as UserIcon,
   X,
   Check,
@@ -229,7 +228,11 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                         : "bg-slate-800/50 border-white/5 text-slate-500"
                     }`}
                   >
-                    {formData.mobileAccess ? <Smartphone className="w-4 h-4" /> : <SmartphoneOff className="w-4 h-4" />}
+                    {formData.mobileAccess ? (
+                      <Smartphone className="w-4 h-4" />
+                    ) : (
+                      <Users className="w-4 h-4" />
+                    )}
                     <span className="text-[10px] font-bold uppercase tracking-wider">Mobile App Access</span>
                   </button>
                 </div>

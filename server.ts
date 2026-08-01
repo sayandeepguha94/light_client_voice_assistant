@@ -138,7 +138,6 @@ function saveDashboardConfigPassword() {
 }
 
 loadUsers();
-console.log(`[Security] Sibling App Passwords Path: ${OTHER_APP_PASSWORDS_FILE}`);
 
 // Centralized Shopping List State
 interface ShoppingItem {

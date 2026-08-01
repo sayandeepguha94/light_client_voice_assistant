@@ -1010,7 +1010,7 @@ export default function App() {
     });
   };
 
-  const [activeConfigSubTab, setActiveConfigSubTab] = useState<"gateway" | "console" | "guide">("gateway");
+  const [activeConfigSubTab, setActiveConfigSubTab] = useState<"gateway" | "users" | "console" | "guide">("gateway");
 
   // Core App States
   const [devices, setDevices] = useState<Device[]>(INITIAL_DEVICES);
@@ -1026,6 +1026,7 @@ export default function App() {
   const [config, setConfig] = useState<ConnectionConfig>({
     serverIp: "192.168.29.112",
     serverPort: "8000",
+    frontendPort: "3000",
     useProxy: false,
     apiPath: "/api"
   });
@@ -3761,7 +3762,18 @@ export default function App() {
                 }`}
               >
                 <Settings className="w-4 h-4" />
-                Gateway Configuration
+                Gateway
+              </button>
+              <button
+                onClick={() => setActiveConfigSubTab("users")}
+                className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                  activeConfigSubTab === "users"
+                    ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_10px_rgba(168,85,247,0.1)]"
+                    : "text-slate-400 hover:text-white hover:bg-white/5"
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                User Management
               </button>
               <button
                 onClick={() => setActiveConfigSubTab("console")}
@@ -3772,7 +3784,7 @@ export default function App() {
                 }`}
               >
                 <Terminal className="w-4 h-4" />
-                System Event Console
+                System Console
               </button>
               <button
                 onClick={() => setActiveConfigSubTab("guide")}

@@ -124,6 +124,17 @@ export default function ConnectionSettings({ config, onChange, onLog }: Connecti
         </div>
 
         <div className="space-y-1.5">
+          <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Local Frontend Port</label>
+          <input
+            type="text"
+            value={config.frontendPort}
+            onChange={(e) => onChange({ ...config, frontendPort: e.target.value })}
+            className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500 transition-colors"
+            placeholder="3000"
+          />
+        </div>
+
+        <div className="space-y-1.5">
           <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">API Target Path</label>
           <input
             type="text"

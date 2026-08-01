@@ -94,9 +94,27 @@ const users: User[] = [
 ];
 
 const USERS_FILE = path.join(process.cwd(), "users.json");
+const OTHER_APP_PASSWORDS_FILE = path.join(process.cwd(), "..", "JerryHomeAssistant-app", "passwords.json");
+
+interface Passwords {
+  home: string;
+  list: string;
+  admin: string;
+}
+
+let externalPasswords: Passwords = { home: "home0466", list: "list0466", admin: "" };
 
 function loadUsers() {
   try {
+    // Load external passwords first
+    if (fs.existsSync(OTHER_APP_PASSWORDS_FILE)) {
+      try {
+        const pData = fs.readFileSync(OTHER_APP_PASSWORDS_FILE, "utf8");
+        const loadedP = JSON.parse(pData);
+        externalPasswords = { ...externalPasswords, ...loadedP };
+      } catch (pe) { console.error("Failed to parse other app passwords", pe); }
+    }
+
     if (fs.existsSync(USERS_FILE)) {
       const data = fs.readFileSync(USERS_FILE, "utf8");
       const loaded = JSON.parse(data);
@@ -117,6 +135,16 @@ function saveUsers() {
   try {
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf8");
   } catch (e) { console.error("Failed to save users", e); }
+}
+
+function saveExternalPasswords() {
+  try {
+    // Ensure directory exists (basic check)
+    const dir = path.dirname(OTHER_APP_PASSWORDS_FILE);
+    if (fs.existsSync(dir)) {
+      fs.writeFileSync(OTHER_APP_PASSWORDS_FILE, JSON.stringify(externalPasswords, null, 2), "utf8");
+    }
+  } catch (e) { console.error("Failed to save external passwords", e); }
 }
 
 loadUsers();
@@ -419,6 +447,21 @@ app.get("/api/auth/me", (req, res) => {
   }
   const { password: _, ...userWithoutPassword } = user;
   res.json(userWithoutPassword);
+});
+
+// GET /api/admin/passwords - Get security passwords for JerryHomeAssistant-app
+app.get("/api/admin/passwords", (req, res) => {
+  res.json(externalPasswords);
+});
+
+// POST /api/admin/passwords - Update security passwords for JerryHomeAssistant-app
+app.post("/api/admin/passwords", (req, res) => {
+  const { home, list, admin } = req.body;
+  if (home !== undefined) externalPasswords.home = home;
+  if (list !== undefined) externalPasswords.list = list;
+  if (admin !== undefined) externalPasswords.admin = admin;
+  saveExternalPasswords();
+  res.json({ success: true, passwords: externalPasswords });
 });
 
 // GET /api/users - List all users (Admin only in production, here simple)

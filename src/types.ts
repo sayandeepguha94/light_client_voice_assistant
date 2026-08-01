@@ -22,8 +22,15 @@ export interface SystemLog {
 export interface ConnectionConfig {
   serverIp: string;
   serverPort: string;
+  frontendPort: string;
   useProxy: boolean;
   apiPath: string;
+}
+
+export interface Passwords {
+  home: string;
+  list: string;
+  admin: string;
 }
 
 export interface ChatMessage {

@@ -94,33 +94,19 @@ const users: User[] = [
 ];
 
 const USERS_FILE = path.join(process.cwd(), "users.json");
-const OTHER_APP_PASSWORDS_FILE = path.join(process.cwd(), "..", "JerryHomeAssistant-app", "passwords.json");
+const DASHBOARD_CONFIG_PASSWORD_FILE = path.join(process.cwd(), "config_password.json");
 
-interface Passwords {
-  home: string;
-  list: string;
-  admin: string;
-}
-
-let externalPasswords: Passwords = { home: "home0466", list: "list0466", admin: "" };
-
-/** Helper to sync local admin user password with global config */
-function syncAdminPassword() {
-  const adminUser = users.find(u => u.username === "admin");
-  if (adminUser && externalPasswords.admin) {
-    adminUser.password = externalPasswords.admin;
-  }
-}
+let dashboardConfigPassword = "admin0466";
 
 function loadUsers() {
   try {
-    // Load external passwords first
-    if (fs.existsSync(OTHER_APP_PASSWORDS_FILE)) {
+    // Load dashboard config password
+    if (fs.existsSync(DASHBOARD_CONFIG_PASSWORD_FILE)) {
       try {
-        const pData = fs.readFileSync(OTHER_APP_PASSWORDS_FILE, "utf8");
+        const pData = fs.readFileSync(DASHBOARD_CONFIG_PASSWORD_FILE, "utf8");
         const loadedP = JSON.parse(pData);
-        externalPasswords = { ...externalPasswords, ...loadedP };
-      } catch (pe) { console.error("Failed to parse other app passwords", pe); }
+        if (loadedP.password) dashboardConfigPassword = loadedP.password;
+      } catch (pe) { console.error("Failed to parse dashboard config password", pe); }
     }
 
     if (fs.existsSync(USERS_FILE)) {
@@ -136,9 +122,6 @@ function loadUsers() {
         }
       }
     }
-
-    // Sync admin password after loading everything
-    syncAdminPassword();
   } catch (e) { console.error("Failed to load users", e); }
 }
 
@@ -148,14 +131,10 @@ function saveUsers() {
   } catch (e) { console.error("Failed to save users", e); }
 }
 
-function saveExternalPasswords() {
+function saveDashboardConfigPassword() {
   try {
-    // Ensure directory exists (basic check)
-    const dir = path.dirname(OTHER_APP_PASSWORDS_FILE);
-    if (fs.existsSync(dir)) {
-      fs.writeFileSync(OTHER_APP_PASSWORDS_FILE, JSON.stringify(externalPasswords, null, 2), "utf8");
-    }
-  } catch (e) { console.error("Failed to save external passwords", e); }
+    fs.writeFileSync(DASHBOARD_CONFIG_PASSWORD_FILE, JSON.stringify({ password: dashboardConfigPassword }, null, 2), "utf8");
+  } catch (e) { console.error("Failed to save dashboard config password", e); }
 }
 
 loadUsers();
@@ -461,25 +440,27 @@ app.get("/api/auth/me", (req, res) => {
   res.json(userWithoutPassword);
 });
 
-// GET /api/admin/passwords - Get security passwords for JerryHomeAssistant-app
-app.get("/api/admin/passwords", (req, res) => {
-  res.json(externalPasswords);
+// POST /api/auth/verify-config - Verify dashboard configuration access password
+app.post("/api/auth/verify-config", (req, res) => {
+  const { password } = req.body;
+  if (password === dashboardConfigPassword) {
+    return res.json({ success: true });
+  }
+  res.status(401).json({ error: "Invalid configuration password" });
 });
 
-// POST /api/admin/passwords - Update security passwords for JerryHomeAssistant-app
-app.post("/api/admin/passwords", (req, res) => {
-  const { home, list, admin } = req.body;
-  if (home !== undefined) externalPasswords.home = home;
-  if (list !== undefined) externalPasswords.list = list;
-  if (admin !== undefined) externalPasswords.admin = admin;
+// GET /api/admin/config-password - Get current config password (Admin only)
+app.get("/api/admin/config-password", (req, res) => {
+  res.json({ password: dashboardConfigPassword });
+});
 
-  saveExternalPasswords();
-
-  // Sync changes to local users as well (for dashboard admin login)
-  syncAdminPassword();
-  saveUsers();
-
-  res.json({ success: true, passwords: externalPasswords });
+// POST /api/admin/config-password - Update dashboard configuration password
+app.post("/api/admin/config-password", (req, res) => {
+  const { password } = req.body;
+  if (!password) return res.status(400).json({ error: "Password required" });
+  dashboardConfigPassword = password;
+  saveDashboardConfigPassword();
+  res.json({ success: true });
 });
 
 // GET /api/users - List all users (Admin only in production, here simple)

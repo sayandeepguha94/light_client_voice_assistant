@@ -27,12 +27,6 @@ export interface ConnectionConfig {
   apiPath: string;
 }
 
-export interface Passwords {
-  home: string;
-  list: string;
-  admin: string;
-}
-
 export interface ChatMessage {
   id: string;
   sender: "user" | "assistant";

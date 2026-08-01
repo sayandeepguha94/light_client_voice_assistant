@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { User, Passwords } from "../types";
+import { User } from "../types";
 import {
   Users,
   UserPlus,
@@ -7,56 +7,29 @@ import {
   Shield,
   ShieldCheck,
   Smartphone,
+  SmartphoneOff,
   User as UserIcon,
   X,
   Check,
   AlertCircle,
   Lock,
-  Globe,
   RefreshCw,
   Save,
-  Home,
-  List as ListIcon
+  Settings
 } from "lucide-react";
 
 interface UserManagementProps {
   onLog: (type: "info" | "success" | "warning" | "error", msg: string, details?: string) => void;
 }
 
-const SECURITY_STORAGE_KEY = "jerry_global_security_passwords";
-
-const getStoredPasswords = (): Passwords | null => {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const stored = window.localStorage.getItem(SECURITY_STORAGE_KEY);
-    if (!stored) return null;
-    const parsed = JSON.parse(stored) as Partial<Passwords>;
-    return {
-      home: parsed.home ?? "",
-      list: parsed.list ?? "",
-      admin: parsed.admin ?? "",
-    };
-  } catch {
-    return null;
-  }
-};
-
-const persistPasswords = (nextPasswords: Passwords) => {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(SECURITY_STORAGE_KEY, JSON.stringify(nextPasswords));
-    window.dispatchEvent(new CustomEvent("jerry-security-updated", { detail: nextPasswords }));
-  }
-};
-
 export default function UserManagement({ onLog }: UserManagementProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // App Config / Passwords State
-  const [passwords, setPasswords] = useState<Passwords>(() => getStoredPasswords() ?? { home: "", list: "", admin: "" });
-  const [isSavingPasswords, setIsSavingPasswords] = useState(false);
+  // Dashboard Config Password State
+  const [configPassword, setConfigPassword] = useState("");
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
 
   // New User Form State
   const [formData, setFormData] = useState({
@@ -70,39 +43,8 @@ export default function UserManagement({ onLog }: UserManagementProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedPasswords = getStoredPasswords();
-    if (storedPasswords) {
-      setPasswords(storedPasswords);
-    }
-
-    const handleStorageSync = (event: StorageEvent) => {
-      if (event.key === SECURITY_STORAGE_KEY && event.newValue) {
-        try {
-          const nextPasswords = JSON.parse(event.newValue) as Passwords;
-          setPasswords(nextPasswords);
-        } catch {
-          // Ignore invalid storage payloads
-        }
-      }
-    };
-
-    const handleFrontendSync = (event: Event) => {
-      const customEvent = event as CustomEvent<Passwords>;
-      if (customEvent.detail) {
-        setPasswords(customEvent.detail);
-      }
-    };
-
-    window.addEventListener("storage", handleStorageSync);
-    window.addEventListener("jerry-security-updated", handleFrontendSync as EventListener);
-
     fetchUsers();
-    fetchPasswords();
-
-    return () => {
-      window.removeEventListener("storage", handleStorageSync);
-      window.removeEventListener("jerry-security-updated", handleFrontendSync as EventListener);
-    };
+    fetchConfigPassword();
   }, []);
 
   const fetchUsers = async () => {
@@ -122,45 +64,40 @@ export default function UserManagement({ onLog }: UserManagementProps) {
     }
   };
 
-  const fetchPasswords = async () => {
+  const fetchConfigPassword = async () => {
     try {
-      const res = await fetch("/api/admin/passwords");
+      const res = await fetch("/api/admin/config-password");
       if (res.ok) {
         const data = await res.json();
-        const nextPasswords: Passwords = {
-          home: data.home ?? "",
-          list: data.list ?? "",
-          admin: data.admin ?? "",
-        };
-        setPasswords(nextPasswords);
-        persistPasswords(nextPasswords);
+        setConfigPassword(data.password || "");
       }
     } catch (err: any) {
-      console.error("Failed to fetch app passwords", err);
+      console.error("Failed to fetch config password", err);
     }
   };
 
-  const handleSavePasswords = async () => {
-    setIsSavingPasswords(true);
-    persistPasswords(passwords);
-
+  const handleSaveConfigPassword = async () => {
+    if (!configPassword.trim()) {
+      onLog("warning", "Password Required", "The configuration access password cannot be empty.");
+      return;
+    }
+    setIsSavingPassword(true);
     try {
-      const res = await fetch("/api/admin/passwords", {
+      const res = await fetch("/api/admin/config-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(passwords),
+        body: JSON.stringify({ password: configPassword }),
       });
 
       if (res.ok) {
-        onLog("success", "Global application security updated successfully.");
-        await fetchPasswords(); // Re-fetch to ensure sync
+        onLog("success", "Configuration access security updated successfully.");
       } else {
-        onLog("error", "Failed to update global security");
+        onLog("error", "Failed to update configuration security");
       }
     } catch (err: any) {
-      onLog("error", "Error saving passwords", err.message);
+      onLog("error", "Error saving config password", err.message);
     } finally {
-      setIsSavingPasswords(false);
+      setIsSavingPassword(false);
     }
   };
 
@@ -217,9 +154,9 @@ export default function UserManagement({ onLog }: UserManagementProps) {
   const mobileUsers = users.filter(u => u.mobileAccess);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
 
-      {/* SECTION 1: MOBILE DEVICES (USER LIST) */}
+      {/* SECTION 1: MOBILE DEVICES */}
       <section className="space-y-6">
         <div className="flex justify-between items-center border-b border-white/5 pb-3">
           <div className="flex items-center gap-2.5">
@@ -227,8 +164,8 @@ export default function UserManagement({ onLog }: UserManagementProps) {
               <Smartphone className="w-5 h-5 text-indigo-400" />
             </div>
             <div>
-              <h2 className="text-sm font-bold tracking-wider text-white uppercase">Mobile Devices & Users</h2>
-              <p className="text-[10px] text-slate-500 font-mono">MANAGE ACCESS FOR JERRY_MOBILE_APP</p>
+              <h2 className="text-sm font-bold tracking-wider text-white uppercase">Mobile Devices</h2>
+              <p className="text-[10px] text-slate-500 font-mono">AUTHORIZED USERS FOR JERRY_MOBILE_APP</p>
             </div>
           </div>
           <button
@@ -292,7 +229,7 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                         : "bg-slate-800/50 border-white/5 text-slate-500"
                     }`}
                   >
-                    {formData.mobileAccess ? <Smartphone className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                    {formData.mobileAccess ? <Smartphone className="w-4 h-4" /> : <SmartphoneOff className="w-4 h-4" />}
                     <span className="text-[10px] font-bold uppercase tracking-wider">Mobile App Access</span>
                   </button>
                 </div>
@@ -339,14 +276,14 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                       Syncing user database...
                     </td>
                   </tr>
-                ) : users.length === 0 ? (
+                ) : mobileUsers.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-5 py-10 text-center text-slate-500 text-xs">
-                      No registered users found.
+                      No mobile-authorized users found.
                     </td>
                   </tr>
                 ) : (
-                  users.map(user => (
+                  mobileUsers.map(user => (
                     <tr key={user.id} className="hover:bg-white/[0.02] transition-colors group">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
@@ -375,8 +312,8 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                             ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
                             : "bg-slate-900 text-slate-600 border border-white/5"
                         }`}>
-                          {user.mobileAccess ? <Smartphone className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-                          {user.mobileAccess ? "Jerry Mobile ACTIVE" : "Restricted"}
+                          <Smartphone className="w-3 h-3" />
+                          Jerry Mobile ACTIVE
                         </div>
                       </td>
                       <td className="px-5 py-4 text-right">
@@ -399,103 +336,50 @@ export default function UserManagement({ onLog }: UserManagementProps) {
         </div>
       </section>
 
-      {/* SECTION 2: GLOBAL APPLICATION SECURITY */}
+      {/* SECTION 2: CONFIGURATION ACCESS SECURITY */}
       <section className="space-y-6">
         <div className="flex items-center gap-2.5 border-b border-white/5 pb-3">
           <div className="p-2 bg-amber-500/10 rounded-lg">
-            <Globe className="w-5 h-5 text-amber-400" />
+            <ShieldCheck className="w-5 h-5 text-amber-400" />
           </div>
           <div>
-            <h2 className="text-sm font-bold tracking-wider text-white uppercase">Global Application Security</h2>
-            <p className="text-[10px] text-slate-500 font-mono">CROSS-APP PASSWORD MANAGEMENT (JERRYHOMEASSISTANT-APP)</p>
+            <h2 className="text-sm font-bold tracking-wider text-white uppercase">Configuration Access Security</h2>
+            <p className="text-[10px] text-slate-500 font-mono">DASHBOARD ADMIN ACCESS PROTECTION</p>
           </div>
         </div>
 
-        <div className="bg-[#111216] border border-[#1e222b] rounded-2xl p-6 shadow-xl space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Home Password */}
+        <div className="bg-[#111216] border border-[#1e222b] rounded-2xl p-6 shadow-xl">
+          <div className="max-w-md space-y-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <Home className="w-3.5 h-3.5 text-cyan-400" />
-                <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Home Password</label>
+                <Lock className="w-3.5 h-3.5 text-amber-400" />
+                <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Dashboard Config Password</label>
               </div>
               <div className="relative">
                 <input
                   type="text"
-                  value={passwords.home}
-                  onChange={e => {
-                    const nextPasswords = { ...passwords, home: e.target.value };
-                    setPasswords(nextPasswords);
-                    persistPasswords(nextPasswords);
-                  }}
-                  className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg pl-9 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
-                  placeholder="home0466"
-                />
-                <Lock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
-              </div>
-              <p className="text-[9px] text-slate-500 leading-tight">Used for Home/Dashboard mode access.</p>
-            </div>
-
-            {/* List Password */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <ListIcon className="w-3.5 h-3.5 text-amber-400" />
-                <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">List Password</label>
-              </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={passwords.list}
-                  onChange={e => {
-                    const nextPasswords = { ...passwords, list: e.target.value };
-                    setPasswords(nextPasswords);
-                    persistPasswords(nextPasswords);
-                  }}
+                  value={configPassword}
+                  onChange={e => setConfigPassword(e.target.value)}
                   className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg pl-9 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
-                  placeholder="list0466"
+                  placeholder="admin0466"
                 />
-                <Lock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
+                <Settings className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
               </div>
-              <p className="text-[9px] text-slate-500 leading-tight">Used for Shopping List mode access.</p>
+              <p className="text-[10px] text-slate-500 leading-tight">
+                This password protects the <strong>Config</strong> tab from unauthorized access. Default is 'admin0466'.
+              </p>
             </div>
 
-            {/* Admin Password */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
-                <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Admin Password</label>
-              </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={passwords.admin}
-                  onChange={e => {
-                    const nextPasswords = { ...passwords, admin: e.target.value };
-                    setPasswords(nextPasswords);
-                    persistPasswords(nextPasswords);
-                  }}
-                  className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg pl-9 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono"
-                  placeholder="[System Default]"
-                />
-                <Lock className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
-              </div>
-              <p className="text-[9px] text-slate-500 leading-tight">Overrides 'admin0466' for full system access.</p>
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={handleSaveConfigPassword}
+                disabled={isSavingPassword}
+                className="bg-amber-600 hover:bg-amber-500 disabled:bg-amber-800 text-white text-xs font-bold px-8 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-amber-500/10 active:scale-95"
+              >
+                {isSavingPassword ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                Update Dashboard Security
+              </button>
             </div>
-          </div>
-
-          <div className="pt-4 border-t border-white/5 flex justify-between items-center">
-            <div className="flex items-center gap-2 text-rose-400/80 text-[10px] font-medium bg-rose-500/5 px-3 py-1.5 rounded-lg border border-rose-500/10">
-              <AlertCircle className="w-3.5 h-3.5" />
-              <span>Warning: Changing these affects security in the PWA sibling project.</span>
-            </div>
-            <button
-              onClick={handleSavePasswords}
-              disabled={isSavingPasswords}
-              className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white text-xs font-bold px-8 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/10 active:scale-95"
-            >
-              {isSavingPasswords ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              Update Security Config
-            </button>
           </div>
         </div>
       </section>

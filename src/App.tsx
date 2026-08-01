@@ -1012,6 +1012,33 @@ export default function App() {
   };
 
   const [activeConfigSubTab, setActiveConfigSubTab] = useState<"gateway" | "users" | "console" | "guide">("gateway");
+  const [isConfigAuthenticated, setIsConfigAuthenticated] = useState(false);
+  const [configAuthPassword, setConfigAuthPassword] = useState("");
+  const [configAuthError, setConfigAuthError] = useState(false);
+  const [isVerifyingConfig, setIsVerifyingConfig] = useState(false);
+
+  const handleConfigAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsVerifyingConfig(true);
+    setConfigAuthError(false);
+    try {
+      const res = await fetch("/api/auth/verify-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: configAuthPassword }),
+      });
+      if (res.ok) {
+        setIsConfigAuthenticated(true);
+        setConfigAuthPassword("");
+      } else {
+        setConfigAuthError(true);
+      }
+    } catch (err) {
+      setConfigAuthError(true);
+    } finally {
+      setIsVerifyingConfig(false);
+    }
+  };
 
   // Core App States
   const [devices, setDevices] = useState<Device[]>(INITIAL_DEVICES);
@@ -3752,101 +3779,143 @@ export default function App() {
 
         {activeTab === "configurations" && (
           <div className="max-w-5xl mx-auto space-y-6">
-            {/* Sub-navigation inside Configurations */}
-            <div className="flex flex-wrap bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full md:w-max gap-1">
-              <button
-                onClick={() => setActiveConfigSubTab("gateway")}
-                className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                  activeConfigSubTab === "gateway"
-                    ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_10px_rgba(245,158,11,0.1)]"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
-                }`}
-              >
-                <Settings className="w-4 h-4" />
-                Gateway
-              </button>
-              <button
-                onClick={() => setActiveConfigSubTab("users")}
-                className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                  activeConfigSubTab === "users"
-                    ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_10px_rgba(168,85,247,0.1)]"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                User Management
-              </button>
-              <button
-                onClick={() => setActiveConfigSubTab("console")}
-                className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                  activeConfigSubTab === "console"
-                    ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_10px_rgba(99,102,241,0.1)]"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
-                }`}
-              >
-                <Terminal className="w-4 h-4" />
-                System Console
-              </button>
-              <button
-                onClick={() => setActiveConfigSubTab("guide")}
-                className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                  activeConfigSubTab === "guide"
-                    ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
-                    : "text-slate-400 hover:text-white hover:bg-white/5"
-                }`}
-              >
-                <HelpCircle className="w-4 h-4" />
-                Setup Guide
-              </button>
-            </div>
-
-            {/* Sub-tab Contents */}
-            {activeConfigSubTab === "gateway" && (
-              <div className="space-y-6 animate-fade-in">
-                <ConnectionSettings config={config} onChange={setConfig} onLog={addLog} />
-                
-                <div className="bg-[#11131f]/40 border border-white/5 p-5 rounded-2xl">
-                  <h3 className="text-xs font-bold tracking-wider text-slate-400 uppercase mb-3 pb-2 border-b border-white/5 flex items-center gap-2 font-mono">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    Connection Guidelines
-                  </h3>
-                  <ul className="text-xs text-slate-400 space-y-2.5 list-disc pl-4 leading-relaxed">
-                    <li>Make sure the Python IoT bridge is actively running on your local machine at <code className="text-cyan-400 bg-white/5 px-1 py-0.5 rounded">192.168.29.112:8000</code>.</li>
-                    <li>If you are accessing this browser UI via our cloud preview, choose the <strong>Proxied Server Connection</strong> to bypass LAN routing restrictions.</li>
-                    <li>Make sure your browser allows mixed-content if running in <strong>Direct LAN Mode</strong>. You can do this by setting Chrome Flags appropriately as shown in the Guide tab.</li>
-                  </ul>
+            {!isConfigAuthenticated ? (
+              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-8 rounded-3xl max-w-md mx-auto shadow-2xl animate-fade-in my-12">
+                <div className="flex flex-col items-center text-center space-y-6">
+                  <div className="p-4 bg-amber-500/10 rounded-full border border-amber-500/20 shadow-[0_0_20px_rgba(245,158,11,0.1)]">
+                    <Lock className="w-10 h-10 text-amber-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white tracking-tight">Protected Configuration</h2>
+                    <p className="text-xs text-slate-400 mt-1">Please enter the administrative password to access system settings.</p>
+                  </div>
+                  <form onSubmit={handleConfigAuth} className="w-full space-y-4">
+                    <div className="relative">
+                      <input
+                        type="password"
+                        value={configAuthPassword}
+                        onChange={(e) => setConfigAuthPassword(e.target.value)}
+                        placeholder="Admin Password"
+                        autoFocus
+                        className={`w-full bg-black/40 border ${configAuthError ? "border-rose-500" : "border-white/10"} focus:border-amber-400/50 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none transition-all shadow-inner`}
+                      />
+                    </div>
+                    {configAuthError && (
+                      <p className="text-[10px] text-rose-400 font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 animate-bounce">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        Invalid Admin Credentials
+                      </p>
+                    )}
+                    <button
+                      type="submit"
+                      disabled={isVerifyingConfig}
+                      className="w-full bg-amber-500 hover:bg-amber-400 disabled:bg-amber-800 text-slate-950 font-bold py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(245,158,11,0.2)] active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      {isVerifyingConfig ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                      Unlock Configuration
+                    </button>
+                  </form>
                 </div>
               </div>
-            )}
+            ) : (
+              <>
+                {/* Sub-navigation inside Configurations */}
+                <div className="flex flex-wrap bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full md:w-max gap-1">
+                  <button
+                    onClick={() => setActiveConfigSubTab("gateway")}
+                    className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                      activeConfigSubTab === "gateway"
+                        ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_10px_rgba(245,158,11,0.1)]"
+                        : "text-slate-400 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    <Settings className="w-4 h-4" />
+                    Gateway
+                  </button>
+                  <button
+                    onClick={() => setActiveConfigSubTab("users")}
+                    className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                      activeConfigSubTab === "users"
+                        ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_10px_rgba(168,85,247,0.1)]"
+                        : "text-slate-400 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    User Management
+                  </button>
+                  <button
+                    onClick={() => setActiveConfigSubTab("console")}
+                    className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                      activeConfigSubTab === "console"
+                        ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_10px_rgba(99,102,241,0.1)]"
+                        : "text-slate-400 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    <Terminal className="w-4 h-4" />
+                    System Console
+                  </button>
+                  <button
+                    onClick={() => setActiveConfigSubTab("guide")}
+                    className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                      activeConfigSubTab === "guide"
+                        ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
+                        : "text-slate-400 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                    Setup Guide
+                  </button>
+                </div>
 
-            {activeConfigSubTab === "console" && (
-              <div className="h-[550px] animate-fade-in">
-                <SystemLogComponent logs={logs} onClear={() => setLogs([])} />
-              </div>
-            )}
+                {/* Sub-tab Contents */}
+                {activeConfigSubTab === "gateway" && (
+                  <div className="space-y-6 animate-fade-in">
+                    <ConnectionSettings config={config} onChange={setConfig} onLog={addLog} />
 
-            {activeConfigSubTab === "users" && (
-              <div className="animate-fade-in">
-                <UserManagement onLog={addLog} />
-              </div>
-            )}
+                    <div className="bg-[#11131f]/40 border border-white/5 p-5 rounded-2xl">
+                      <h3 className="text-xs font-bold tracking-wider text-slate-400 uppercase mb-3 pb-2 border-b border-white/5 flex items-center gap-2 font-mono">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        Connection Guidelines
+                      </h3>
+                      <ul className="text-xs text-slate-400 space-y-2.5 list-disc pl-4 leading-relaxed">
+                        <li>Make sure the Python IoT bridge is actively running on your local machine at <code className="text-cyan-400 bg-white/5 px-1 py-0.5 rounded">192.168.29.112:8000</code>.</li>
+                        <li>If you are accessing this browser UI via our cloud preview, choose the <strong>Proxied Server Connection</strong> to bypass LAN routing restrictions.</li>
+                        <li>Make sure your browser allows mixed-content if running in <strong>Direct LAN Mode</strong>. You can do this by setting Chrome Flags appropriately as shown in the Guide tab.</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
 
-            {activeConfigSubTab === "guide" && (
-              <div className="animate-fade-in">
-                <IntegrationGuide 
-                  selectedLanguage={selectedLanguage} 
-                  listening={listening}
-                  isProcessing={isProcessing}
-                  transcript={transcript}
-                  chatMessages={chatMessages}
-                  config={config}
-                  handleProcessCommand={handleProcessCommand}
-                  setListening={setListening}
-                  setTranscript={setTranscript}
-                  wakeWordEnabled={wakeWordEnabled}
-                  setWakeWordEnabled={setWakeWordEnabled}
-                />
-              </div>
+                {activeConfigSubTab === "console" && (
+                  <div className="h-[550px] animate-fade-in">
+                    <SystemLogComponent logs={logs} onClear={() => setLogs([])} />
+                  </div>
+                )}
+
+                {activeConfigSubTab === "users" && (
+                  <div className="animate-fade-in">
+                    <UserManagement onLog={addLog} />
+                  </div>
+                )}
+
+                {activeConfigSubTab === "guide" && (
+                  <div className="animate-fade-in">
+                    <IntegrationGuide
+                      selectedLanguage={selectedLanguage}
+                      listening={listening}
+                      isProcessing={isProcessing}
+                      transcript={transcript}
+                      chatMessages={chatMessages}
+                      config={config}
+                      handleProcessCommand={handleProcessCommand}
+                      setListening={setListening}
+                      setTranscript={setTranscript}
+                      wakeWordEnabled={wakeWordEnabled}
+                      setWakeWordEnabled={setWakeWordEnabled}
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

@@ -153,6 +153,7 @@ export default function UserManagement({ onLog }: UserManagementProps) {
 
       if (res.ok) {
         onLog("success", "Global application security updated successfully.");
+        await fetchPasswords(); // Re-fetch to ensure sync
       } else {
         onLog("error", "Failed to update global security");
       }

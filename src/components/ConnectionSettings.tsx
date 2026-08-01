@@ -100,7 +100,7 @@ export default function ConnectionSettings({ config, onChange, onLog }: Connecti
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-6">
         <div className="space-y-1.5">
           <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Server Local IP</label>
           <input
@@ -123,7 +123,7 @@ export default function ConnectionSettings({ config, onChange, onLog }: Connecti
           />
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 sm:mt-0 mt-2">
           <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Local Frontend Port</label>
           <input
             type="text"

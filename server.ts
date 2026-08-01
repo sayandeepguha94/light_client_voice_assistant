@@ -104,6 +104,14 @@ interface Passwords {
 
 let externalPasswords: Passwords = { home: "home0466", list: "list0466", admin: "" };
 
+/** Helper to sync local admin user password with global config */
+function syncAdminPassword() {
+  const adminUser = users.find(u => u.username === "admin");
+  if (adminUser && externalPasswords.admin) {
+    adminUser.password = externalPasswords.admin;
+  }
+}
+
 function loadUsers() {
   try {
     // Load external passwords first
@@ -128,6 +136,9 @@ function loadUsers() {
         }
       }
     }
+
+    // Sync admin password after loading everything
+    syncAdminPassword();
   } catch (e) { console.error("Failed to load users", e); }
 }
 
@@ -148,6 +159,7 @@ function saveExternalPasswords() {
 }
 
 loadUsers();
+console.log(`[Security] Sibling App Passwords Path: ${OTHER_APP_PASSWORDS_FILE}`);
 
 // Centralized Shopping List State
 interface ShoppingItem {
@@ -460,7 +472,13 @@ app.post("/api/admin/passwords", (req, res) => {
   if (home !== undefined) externalPasswords.home = home;
   if (list !== undefined) externalPasswords.list = list;
   if (admin !== undefined) externalPasswords.admin = admin;
+
   saveExternalPasswords();
+
+  // Sync changes to local users as well (for dashboard admin login)
+  syncAdminPassword();
+  saveUsers();
+
   res.json({ success: true, passwords: externalPasswords });
 });
 

@@ -494,6 +494,25 @@ app.post("/api/users", (req, res) => {
   res.json(userWithoutPassword);
 });
 
+// PATCH /api/users/:id - Update user details
+app.patch("/api/users/:id", (req, res) => {
+  const { id } = req.params;
+  const { name, password, mobileAccess, allowed_pages, allowed_devices } = req.body;
+
+  const user = users.find(u => u.id === id);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  if (name !== undefined) user.name = name;
+  if (password !== undefined) user.password = password;
+  if (mobileAccess !== undefined) user.mobileAccess = mobileAccess;
+  if (allowed_pages !== undefined) user.allowed_pages = allowed_pages;
+  if (allowed_devices !== undefined) user.allowed_devices = allowed_devices;
+
+  saveUsers();
+  const { password: _, ...userWithoutPassword } = user;
+  res.json(userWithoutPassword);
+});
+
 // DELETE /api/users/:id - Delete a user
 app.delete("/api/users/:id", (req, res) => {
   const { id } = req.params;

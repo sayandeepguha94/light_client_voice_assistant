@@ -150,7 +150,25 @@ export default function UserManagement({ onLog }: UserManagementProps) {
     }
   };
 
-  const mobileUsers = users.filter(u => u.mobileAccess);
+  const handleToggleMobileAccess = async (userId: string, currentStatus: boolean) => {
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mobileAccess: !currentStatus }),
+      });
+
+      if (res.ok) {
+        const updatedUser = await res.json();
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, mobileAccess: updatedUser.mobileAccess } : u));
+        onLog("success", `Mobile access ${updatedUser.mobileAccess ? "granted" : "revoked"} for user.`);
+      } else {
+        onLog("error", "Failed to update mobile access");
+      }
+    } catch (err: any) {
+      onLog("error", "Error updating access", err.message);
+    }
+  };
 
   return (
     <div className="space-y-12">
@@ -267,7 +285,7 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                 <tr className="bg-[#161a22] border-b border-[#1e222b]">
                   <th className="px-5 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">Authorized User</th>
                   <th className="px-5 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">Role</th>
-                  <th className="px-5 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">Access Type</th>
+                  <th className="px-5 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">Mobile App Access</th>
                   <th className="px-5 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500 text-right">Action</th>
                 </tr>
               </thead>
@@ -279,14 +297,14 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                       Syncing user database...
                     </td>
                   </tr>
-                ) : mobileUsers.length === 0 ? (
+                ) : users.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-5 py-10 text-center text-slate-500 text-xs">
-                      No mobile-authorized users found.
+                      No registered users found.
                     </td>
                   </tr>
                 ) : (
-                  mobileUsers.map(user => (
+                  users.map(user => (
                     <tr key={user.id} className="hover:bg-white/[0.02] transition-colors group">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
@@ -310,21 +328,25 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-tight ${
-                          user.mobileAccess
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
-                            : "bg-slate-900 text-slate-600 border border-white/5"
-                        }`}>
-                          <Smartphone className="w-3 h-3" />
-                          Jerry Mobile ACTIVE
-                        </div>
+                        <button
+                          onClick={() => handleToggleMobileAccess(user.id, !!user.mobileAccess)}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-tight transition-all active:scale-95 ${
+                            user.mobileAccess
+                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
+                              : "bg-slate-900 text-slate-600 border border-white/5 hover:text-slate-400"
+                          }`}
+                          title={user.mobileAccess ? "Revoke Mobile Access" : "Grant Mobile Access"}
+                        >
+                          {user.mobileAccess ? <Smartphone className="w-3 h-3" /> : <SmartphoneOff className="w-3 h-3" />}
+                          {user.mobileAccess ? "ACTIVE" : "DISABLED"}
+                        </button>
                       </td>
                       <td className="px-5 py-4 text-right">
                         {user.username !== "admin" && (
                           <button
                             onClick={() => handleDeleteUser(user.id, user.username)}
                             className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
-                            title="Revoke Access"
+                            title="Delete User Account"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

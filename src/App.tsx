@@ -4,7 +4,7 @@ import {
   Settings, HelpCircle, LayoutGrid, CheckCircle2, AlertCircle, 
   Lightbulb, Thermometer, Wind, Lock, Unlock, ShieldAlert, ShieldCheck, Airplay, Send, Laptop,
   ChevronDown, ChevronUp, Zap, Clock, RotateCcw, Wifi, Cpu, ExternalLink, Smartphone, Radio,
-  ShoppingCart, CloudSun, Users
+  ShoppingCart, CloudSun, Users, LogOut
 } from "lucide-react";
 import { Device, SystemLog, ConnectionConfig, ChatMessage } from "./types";
 import ConnectionSettings from "./components/ConnectionSettings";
@@ -1038,6 +1038,11 @@ export default function App() {
     } finally {
       setIsVerifyingConfig(false);
     }
+  };
+
+  const handleExitConfig = () => {
+    setIsConfigAuthenticated(false);
+    setActiveConfigSubTab("gateway");
   };
 
   // Core App States
@@ -3820,50 +3825,60 @@ export default function App() {
             ) : (
               <>
                 {/* Sub-navigation inside Configurations */}
-                <div className="flex flex-wrap bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full md:w-max gap-1">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full">
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      onClick={() => setActiveConfigSubTab("gateway")}
+                      className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                        activeConfigSubTab === "gateway"
+                          ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_10px_rgba(245,158,11,0.1)]"
+                          : "text-slate-400 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      <Settings className="w-4 h-4" />
+                      Gateway
+                    </button>
+                    <button
+                      onClick={() => setActiveConfigSubTab("users")}
+                      className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                        activeConfigSubTab === "users"
+                          ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_10px_rgba(168,85,247,0.1)]"
+                          : "text-slate-400 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      <Users className="w-4 h-4" />
+                      User Management
+                    </button>
+                    <button
+                      onClick={() => setActiveConfigSubTab("console")}
+                      className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                        activeConfigSubTab === "console"
+                          ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_10px_rgba(99,102,241,0.1)]"
+                          : "text-slate-400 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      <Terminal className="w-4 h-4" />
+                      System Console
+                    </button>
+                    <button
+                      onClick={() => setActiveConfigSubTab("guide")}
+                      className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+                        activeConfigSubTab === "guide"
+                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
+                          : "text-slate-400 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                      Setup Guide
+                    </button>
+                  </div>
+
                   <button
-                    onClick={() => setActiveConfigSubTab("gateway")}
-                    className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                      activeConfigSubTab === "gateway"
-                        ? "bg-amber-500/15 text-amber-400 border border-amber-500/25 shadow-[0_0_10px_rgba(245,158,11,0.1)]"
-                        : "text-slate-400 hover:text-white hover:bg-white/5"
-                    }`}
+                    onClick={handleExitConfig}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold uppercase tracking-wider rounded-lg border border-rose-500/20 transition-all cursor-pointer mr-1"
                   >
-                    <Settings className="w-4 h-4" />
-                    Gateway
-                  </button>
-                  <button
-                    onClick={() => setActiveConfigSubTab("users")}
-                    className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                      activeConfigSubTab === "users"
-                        ? "bg-purple-500/15 text-purple-400 border border-purple-500/25 shadow-[0_0_10px_rgba(168,85,247,0.1)]"
-                        : "text-slate-400 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    <Users className="w-4 h-4" />
-                    User Management
-                  </button>
-                  <button
-                    onClick={() => setActiveConfigSubTab("console")}
-                    className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                      activeConfigSubTab === "console"
-                        ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_10px_rgba(99,102,241,0.1)]"
-                        : "text-slate-400 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    <Terminal className="w-4 h-4" />
-                    System Console
-                  </button>
-                  <button
-                    onClick={() => setActiveConfigSubTab("guide")}
-                    className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                      activeConfigSubTab === "guide"
-                        ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
-                        : "text-slate-400 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    <HelpCircle className="w-4 h-4" />
-                    Setup Guide
+                    <LogOut className="w-3.5 h-3.5" />
+                    Exit Config
                   </button>
                 </div>
 

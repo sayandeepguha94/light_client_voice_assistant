@@ -79,6 +79,7 @@ interface User {
   role: "admin" | "user";
   allowed_pages?: string[];
   allowed_devices?: string[];
+  mobileAccess?: boolean;
 }
 
 const users: User[] = [
@@ -87,7 +88,8 @@ const users: User[] = [
     name: "System Admin",
     username: "admin",
     password: "admin0466",
-    role: "admin"
+    role: "admin",
+    mobileAccess: true
   }
 ];
 
@@ -104,7 +106,7 @@ function loadUsers() {
         users.push(...loaded);
         // Ensure admin always exists
         if (!users.find(u => u.username === "admin")) {
-          users.push({ id: "admin-1", name: "System Admin", username: "admin", password: "admin0466", role: "admin" });
+          users.push({ id: "admin-1", name: "System Admin", username: "admin", password: "admin0466", role: "admin", mobileAccess: true });
         }
       }
     }
@@ -430,7 +432,7 @@ app.get("/api/users", (req, res) => {
 
 // POST /api/users - Create a new user
 app.post("/api/users", (req, res) => {
-  const { username, password, name, allowed_pages, allowed_devices } = req.body;
+  const { username, password, name, allowed_pages, allowed_devices, mobileAccess } = req.body;
   if (!username || !password) return res.status(400).json({ error: "Username and password required" });
   if (users.find(u => u.username === username.toLowerCase())) {
     return res.status(409).json({ error: "User already exists" });
@@ -442,7 +444,8 @@ app.post("/api/users", (req, res) => {
     name: name || username,
     role: "user",
     allowed_pages: allowed_pages || ["dashboard"],
-    allowed_devices: allowed_devices || []
+    allowed_devices: allowed_devices || [],
+    mobileAccess: !!mobileAccess
   };
   users.push(newUser);
   saveUsers();

@@ -33,4 +33,15 @@ export interface ChatMessage {
   timestamp: string;
 }
 
+export interface User {
+  id: string;
+  name: string;
+  username: string;
+  password?: string;
+  role: "admin" | "user";
+  allowed_pages?: string[];
+  allowed_devices?: string[];
+  mobileAccess?: boolean;
+}
+
 

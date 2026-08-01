@@ -3812,6 +3812,12 @@ export default function App() {
               </div>
             )}
 
+            {activeConfigSubTab === "users" && (
+              <div className="animate-fade-in">
+                <UserManagement onLog={addLog} />
+              </div>
+            )}
+
             {activeConfigSubTab === "guide" && (
               <div className="animate-fade-in">
                 <IntegrationGuide 

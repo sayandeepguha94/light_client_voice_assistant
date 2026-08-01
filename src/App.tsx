@@ -4,12 +4,13 @@ import {
   Settings, HelpCircle, LayoutGrid, CheckCircle2, AlertCircle, 
   Lightbulb, Thermometer, Wind, Lock, Unlock, ShieldAlert, ShieldCheck, Airplay, Send, Laptop,
   ChevronDown, ChevronUp, Zap, Clock, RotateCcw, Wifi, Cpu, ExternalLink, Smartphone, Radio,
-  ShoppingCart, CloudSun
+  ShoppingCart, CloudSun, Users
 } from "lucide-react";
 import { Device, SystemLog, ConnectionConfig, ChatMessage } from "./types";
 import ConnectionSettings from "./components/ConnectionSettings";
 import IntegrationGuide from "./components/IntegrationGuide";
 import SystemLogComponent from "./components/SystemLog";
+import UserManagement from "./components/UserManagement";
 import { ShoppingList } from "./components/ShoppingList";
 import { WeatherPanel } from "./components/WeatherPanel";
 

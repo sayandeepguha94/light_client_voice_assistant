@@ -7,6 +7,7 @@ import {
   Shield,
   ShieldCheck,
   Smartphone,
+  SmartphoneOff,
   User as UserIcon,
   X,
   Check,
@@ -14,7 +15,9 @@ import {
   Lock,
   RefreshCw,
   Save,
-  Settings
+  Settings,
+  Key,
+  Layout
 } from "lucide-react";
 
 interface UserManagementProps {
@@ -35,8 +38,14 @@ export default function UserManagement({ onLog }: UserManagementProps) {
     name: "",
     username: "",
     password: "",
-    mobileAccess: false
+    mobileAccess: true,
+    allowed_pages: ["dashboard", "shopping"]
   });
+
+  // Password Change State
+  const [editingPasswordUserId, setEditingPasswordUserId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +124,13 @@ export default function UserManagement({ onLog }: UserManagementProps) {
       if (res.ok) {
         const newUser = await res.json();
         setUsers(prev => [...prev, newUser]);
-        setFormData({ name: "", username: "", password: "", mobileAccess: false });
+        setFormData({
+          name: "",
+          username: "",
+          password: "",
+          mobileAccess: true,
+          allowed_pages: ["dashboard", "shopping"]
+        });
         setShowAddForm(false);
         onLog("success", `User "${formData.username}" created successfully.`);
       } else {
@@ -150,25 +165,46 @@ export default function UserManagement({ onLog }: UserManagementProps) {
     }
   };
 
-  const handleToggleMobileAccess = async (userId: string, currentStatus: boolean) => {
+  const handleUpdatePassword = async (userId: string) => {
+    if (!newPassword.trim()) {
+      onLog("warning", "Password required", "Please enter a new password.");
+      return;
+    }
+
+    setIsUpdatingPassword(true);
     try {
       const res = await fetch(`/api/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobileAccess: !currentStatus }),
+        body: JSON.stringify({ password: newPassword }),
       });
 
       if (res.ok) {
-        const updatedUser = await res.json();
-        setUsers(prev => prev.map(u => u.id === userId ? { ...u, mobileAccess: updatedUser.mobileAccess } : u));
-        onLog("success", `Mobile access ${updatedUser.mobileAccess ? "granted" : "revoked"} for user.`);
+        setEditingPasswordUserId(null);
+        setNewPassword("");
+        onLog("success", "User password updated successfully.");
       } else {
-        onLog("error", "Failed to update mobile access");
+        onLog("error", "Failed to update password");
       }
     } catch (err: any) {
-      onLog("error", "Error updating access", err.message);
+      onLog("error", "Error updating password", err.message);
+    } finally {
+      setIsUpdatingPassword(false);
     }
   };
+
+  const togglePagePrivilege = (page: string) => {
+    setFormData(prev => {
+      const current = prev.allowed_pages;
+      if (current.includes(page)) {
+        return { ...prev, allowed_pages: current.filter(p => p !== page) };
+      } else {
+        return { ...prev, allowed_pages: [...current, page] };
+      }
+    });
+  };
+
+  const AVAILABLE_PAGES = ["dashboard", "shopping", "settings", "voice"];
 
   return (
     <div className="space-y-12">
@@ -201,58 +237,88 @@ export default function UserManagement({ onLog }: UserManagementProps) {
         {/* Add User Form */}
         {showAddForm && (
           <div className="bg-[#111216] border border-indigo-500/20 rounded-2xl p-6 shadow-xl animate-fade-in">
-            <form onSubmit={handleAddUser} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Display Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={e => setFormData({...formData, name: e.target.value})}
-                    placeholder="e.g. John Doe"
-                    className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Username</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.username}
-                    onChange={e => setFormData({...formData, username: e.target.value})}
-                    placeholder="e.g. johndoe"
-                    className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Password</label>
-                  <input
-                    type="password"
-                    required
-                    value={formData.password}
-                    onChange={e => setFormData({...formData, password: e.target.value})}
-                    className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  />
+            <form onSubmit={handleAddUser} className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                {/* Identity Info */}
+                <div className="space-y-4 sm:col-span-2">
+                  <div className="flex items-center gap-2 border-b border-white/5 pb-2 mb-2">
+                    <UserIcon className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Identity</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Display Name</label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.name}
+                        onChange={e => setFormData({...formData, name: e.target.value})}
+                        placeholder="e.g. John Doe"
+                        className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Username</label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.username}
+                        onChange={e => setFormData({...formData, username: e.target.value})}
+                        placeholder="e.g. johndoe"
+                        className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Initial Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={formData.password}
+                        onChange={e => setFormData({...formData, password: e.target.value})}
+                        className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3 pt-6">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({...formData, mobileAccess: !formData.mobileAccess})}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all flex-1 ${
+                          formData.mobileAccess
+                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                            : "bg-slate-800/50 border-white/5 text-slate-500"
+                        }`}
+                      >
+                        {formData.mobileAccess ? <Smartphone className="w-4 h-4" /> : <SmartphoneOff className="w-4 h-4" />}
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Mobile Access</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-3 pt-6">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({...formData, mobileAccess: !formData.mobileAccess})}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all flex-1 ${
-                      formData.mobileAccess
-                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                        : "bg-slate-800/50 border-white/5 text-slate-500"
-                    }`}
-                  >
-                    {formData.mobileAccess ? (
-                      <Smartphone className="w-4 h-4" />
-                    ) : (
-                      <Users className="w-4 h-4" />
-                    )}
-                    <span className="text-[10px] font-bold uppercase tracking-wider">Mobile App Access</span>
-                  </button>
+                {/* Privileges */}
+                <div className="space-y-4 bg-black/20 p-4 rounded-xl border border-white/5">
+                  <div className="flex items-center gap-2 border-b border-white/5 pb-2 mb-2">
+                    <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Allowed Pages</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {AVAILABLE_PAGES.map(page => (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => togglePagePrivilege(page)}
+                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase border transition-all ${
+                          formData.allowed_pages.includes(page)
+                            ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-300"
+                            : "bg-slate-900 border-white/5 text-slate-500 hover:border-white/10"
+                        }`}
+                      >
+                        <span>{page}</span>
+                        {formData.allowed_pages.includes(page) ? <Check className="w-3 h-3" /> : <div className="w-3 h-3" />}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-slate-500 italic mt-2">Specify which modules this user can access in the Jerry ecosystem.</p>
                 </div>
               </div>
 
@@ -269,8 +335,8 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                   disabled={isSubmitting}
                   className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-800 text-white text-xs font-bold px-6 py-2 rounded-lg transition-all flex items-center gap-2"
                 >
-                  {isSubmitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                  Create User
+                  {isSubmitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
+                  Register New User
                 </button>
               </div>
             </form>
@@ -284,76 +350,117 @@ export default function UserManagement({ onLog }: UserManagementProps) {
               <thead>
                 <tr className="bg-[#161a22] border-b border-[#1e222b]">
                   <th className="px-5 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">Authorized User</th>
-                  <th className="px-5 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">Role</th>
-                  <th className="px-5 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">Mobile App Access</th>
+                  <th className="px-5 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500">Privileges</th>
                   <th className="px-5 py-3 text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1e222b]">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={4} className="px-5 py-10 text-center text-slate-500 text-xs">
+                    <td colSpan={3} className="px-5 py-10 text-center text-slate-500 text-xs">
                       <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 opacity-20" />
                       Syncing user database...
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-5 py-10 text-center text-slate-500 text-xs">
+                    <td colSpan={3} className="px-5 py-10 text-center text-slate-500 text-xs">
                       No registered users found.
                     </td>
                   </tr>
                 ) : (
-                  users.map(user => (
-                    <tr key={user.id} className="hover:bg-white/[0.02] transition-colors group">
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
-                            <UserIcon className="w-4 h-4" />
+                  users.map(user => {
+                    const isEditingPassword = editingPasswordUserId === user.id;
+
+                    return (
+                      <tr key={user.id} className="hover:bg-white/[0.02] transition-colors group">
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                              {user.role === "admin" ? <ShieldCheck className="w-4 h-4 text-purple-400" /> : <UserIcon className="w-4 h-4" />}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs font-bold text-white leading-none">{user.name}</p>
+                                {user.mobileAccess && (
+                                  <Smartphone className="w-2.5 h-2.5 text-emerald-400" title="Mobile App Active" />
+                                )}
+                              </div>
+                              <p className="text-[10px] font-mono text-slate-500 mt-1">@{user.username}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-xs font-bold text-white leading-none">{user.name}</p>
-                            <p className="text-[10px] font-mono text-slate-500 mt-1">@{user.username}</p>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex flex-wrap gap-1.5">
+                            {user.role === "admin" ? (
+                              <span className="px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-400 text-[9px] font-black uppercase tracking-widest">
+                                Full System Admin
+                              </span>
+                            ) : (
+                              (user.allowed_pages || []).map(p => (
+                                <span key={p} className="px-1.5 py-0.5 rounded bg-slate-800/50 border border-white/5 text-slate-400 text-[8px] font-bold uppercase tracking-wider">
+                                  {p}
+                                </span>
+                              ))
+                            )}
+                            {(!user.allowed_pages || user.allowed_pages.length === 0) && user.role !== "admin" && (
+                              <span className="text-[9px] text-slate-600 italic">No page access</span>
+                            )}
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider uppercase border ${
-                          user.role === "admin"
-                            ? "bg-purple-500/10 text-purple-400 border-purple-500/30"
-                            : "bg-slate-800 text-slate-400 border-white/5"
-                        }`}>
-                          {user.role === "admin" ? <ShieldCheck className="w-2.5 h-2.5" /> : <Shield className="w-2.5 h-2.5" />}
-                          {user.role}
-                        </div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <button
-                          onClick={() => handleToggleMobileAccess(user.id, !!user.mobileAccess)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-tight transition-all active:scale-95 ${
-                            user.mobileAccess
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
-                              : "bg-slate-900 text-slate-600 border border-white/5 hover:text-slate-400"
-                          }`}
-                          title={user.mobileAccess ? "Revoke Mobile Access" : "Grant Mobile Access"}
-                        >
-                          {user.mobileAccess ? <Smartphone className="w-3 h-3" /> : <SmartphoneOff className="w-3 h-3" />}
-                          {user.mobileAccess ? "ACTIVE" : "DISABLED"}
-                        </button>
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        {user.username !== "admin" && (
-                          <button
-                            onClick={() => handleDeleteUser(user.id, user.username)}
-                            className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
-                            title="Delete User Account"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {isEditingPassword ? (
+                              <div className="flex items-center gap-2 animate-fade-in">
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  value={newPassword}
+                                  onChange={e => setNewPassword(e.target.value)}
+                                  placeholder="New password"
+                                  className="bg-black/40 border border-indigo-500/50 rounded-lg px-2 py-1 text-[10px] text-white focus:outline-none w-32"
+                                />
+                                <button
+                                  onClick={() => handleUpdatePassword(user.id)}
+                                  disabled={isUpdatingPassword}
+                                  className="p-1.5 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg transition-all"
+                                  title="Save Password"
+                                >
+                                  {isUpdatingPassword ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                  onClick={() => { setEditingPasswordUserId(null); setNewPassword(""); }}
+                                  className="p-1.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 rounded-lg transition-all"
+                                  title="Cancel"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => setEditingPasswordUserId(user.id)}
+                                  className="p-2 text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all"
+                                  title="Change Password"
+                                >
+                                  <Key className="w-4 h-4" />
+                                </button>
+                                {user.username !== "admin" && (
+                                  <button
+                                    onClick={() => handleDeleteUser(user.id, user.username)}
+                                    className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
+                                    title="Delete Account"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

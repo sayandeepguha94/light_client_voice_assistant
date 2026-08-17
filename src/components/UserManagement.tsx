@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { User } from "../types";
+import { User, Device } from "../types";
 import {
   Users,
   UserPlus,
@@ -7,6 +7,7 @@ import {
   Shield,
   ShieldCheck,
   Smartphone,
+  SmartphoneOff,
   User as UserIcon,
   X,
   Check,
@@ -15,14 +16,16 @@ import {
   RefreshCw,
   Save,
   Settings,
-  Key
+  Key,
+  Layout
 } from "lucide-react";
 
 interface UserManagementProps {
   onLog: (type: "info" | "success" | "warning" | "error", msg: string, details?: string) => void;
+  allDevices: Device[];
 }
 
-export default function UserManagement({ onLog }: UserManagementProps) {
+export default function UserManagement({ onLog, allDevices }: UserManagementProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -112,11 +115,21 @@ export default function UserManagement({ onLog }: UserManagementProps) {
     setError(null);
     setIsSubmitting(true);
 
+    // Automation Logic: If dashboard is allowed, populate allowed_devices with all system device IDs
+    const allowedDevices = formData.allowed_pages.includes("dashboard")
+      ? allDevices.map(d => d.id)
+      : [];
+
+    const payload = {
+      ...formData,
+      allowed_devices: allowedDevices
+    };
+
     try {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -130,7 +143,7 @@ export default function UserManagement({ onLog }: UserManagementProps) {
           allowed_pages: ["dashboard", "shopping"]
         });
         setShowAddForm(false);
-        onLog("success", `User "${formData.username}" created successfully.`);
+        onLog("success", `User "${formData.username}" created successfully with automated device access.`);
       } else {
         const errData = await res.json();
         setError(errData.error || "Failed to create user");
@@ -202,7 +215,7 @@ export default function UserManagement({ onLog }: UserManagementProps) {
     });
   };
 
-  const AVAILABLE_PAGES = ["dashboard", "shopping", "settings", "voice"];
+  const AVAILABLE_PAGES = ["dashboard", "shopping", "settings"];
 
   return (
     <div className="space-y-12">
@@ -302,6 +315,7 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                       </button>
                     ))}
                   </div>
+                  <p className="text-[9px] text-slate-500 italic mt-2">Granting 'dashboard' access auto-assigns all current system devices.</p>
                 </div>
               </div>
 

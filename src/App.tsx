@@ -3909,7 +3909,7 @@ export default function App() {
 
                 {activeConfigSubTab === "users" && (
                   <div className="animate-fade-in">
-                    <UserManagement onLog={addLog} />
+                    <UserManagement onLog={addLog} allDevices={devices} />
                   </div>
                 )}
 

@@ -7,7 +7,6 @@ import {
   Shield,
   ShieldCheck,
   Smartphone,
-  SmartphoneOff,
   User as UserIcon,
   X,
   Check,
@@ -16,8 +15,7 @@ import {
   RefreshCw,
   Save,
   Settings,
-  Key,
-  Layout
+  Key
 } from "lucide-react";
 
 interface UserManagementProps {
@@ -278,20 +276,6 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                         className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
                       />
                     </div>
-                    <div className="flex items-center gap-3 pt-6">
-                      <button
-                        type="button"
-                        onClick={() => setFormData({...formData, mobileAccess: !formData.mobileAccess})}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all flex-1 ${
-                          formData.mobileAccess
-                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                            : "bg-slate-800/50 border-white/5 text-slate-500"
-                        }`}
-                      >
-                        {formData.mobileAccess ? <Smartphone className="w-4 h-4" /> : <SmartphoneOff className="w-4 h-4" />}
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Mobile Access</span>
-                      </button>
-                    </div>
                   </div>
                 </div>
 
@@ -318,7 +302,6 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                       </button>
                     ))}
                   </div>
-                  <p className="text-[9px] text-slate-500 italic mt-2">Specify which modules this user can access in the Jerry ecosystem.</p>
                 </div>
               </div>
 
@@ -402,9 +385,6 @@ export default function UserManagement({ onLog }: UserManagementProps) {
                                   {p}
                                 </span>
                               ))
-                            )}
-                            {(!user.allowed_pages || user.allowed_pages.length === 0) && user.role !== "admin" && (
-                              <span className="text-[9px] text-slate-600 italic">No page access</span>
                             )}
                           </div>
                         </td>

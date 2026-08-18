@@ -4,7 +4,7 @@ import {
   Settings, HelpCircle, LayoutGrid, CheckCircle2, AlertCircle, 
   Lightbulb, Thermometer, Wind, Lock, Unlock, ShieldAlert, ShieldCheck, Airplay, Send, Laptop,
   ChevronDown, ChevronUp, Zap, Clock, RotateCcw, Wifi, Cpu, ExternalLink, Smartphone, Radio,
-  ShoppingCart, CloudSun, Users, LogOut, Music
+  ShoppingCart, CloudSun, Users, LogOut, Music, X
 } from "lucide-react";
 import { Device, SystemLog, ConnectionConfig, ChatMessage } from "./types";
 import ConnectionSettings from "./components/ConnectionSettings";
@@ -3822,11 +3822,11 @@ export default function App() {
 
             <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl overflow-hidden shadow-2xl h-[700px] relative">
               <iframe
-                src="https://music.youtube.com/"
+                src="https://soundcloud.com/"
                 className="w-full h-full border-none"
                 allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
                 allowFullScreen
-                title="YouTube Music Integration"
+                title="SoundCloud Music"
               />
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-500 to-amber-500 animate-pulse"></div>
             </div>

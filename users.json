@@ -21,7 +21,7 @@
   {
     "id": "user-1785343606360",
     "username": "rima",
-    "password": "rima1234",
+    "password": "1234",
     "name": "Rima",
     "role": "user",
     "allowed_pages": [
@@ -50,5 +50,39 @@
       "bedroom 2.spot light",
       "bedroom 2.high ambient light"
     ]
+  },
+  {
+    "id": "user-1786972673592",
+    "username": "sayandeep",
+    "password": "1234",
+    "name": "Sayandeep",
+    "role": "user",
+    "allowed_pages": [
+      "dashboard",
+      "shopping",
+      "settings"
+    ],
+    "allowed_devices": [
+      "living room.ambient light",
+      "living room.party light",
+      "living room.passage light",
+      "living room.spot light",
+      "living room.fan",
+      "living room.ac",
+      "living room.tv",
+      "dine-in.ambient light",
+      "dine-in.spot light",
+      "dine-in.low spot light",
+      "dine-in.fan",
+      "bedroom.ambient light",
+      "bedroom.bedside light",
+      "bedroom.fan",
+      "bedroom.spot light",
+      "bedroom 2.low ambient light",
+      "bedroom 2.fan",
+      "bedroom 2.spot light",
+      "bedroom 2.high ambient light"
+    ],
+    "mobileAccess": true
   }
 ]

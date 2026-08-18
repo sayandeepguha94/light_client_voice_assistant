@@ -4,7 +4,7 @@ import {
   Settings, HelpCircle, LayoutGrid, CheckCircle2, AlertCircle, 
   Lightbulb, Thermometer, Wind, Lock, Unlock, ShieldAlert, ShieldCheck, Airplay, Send, Laptop,
   ChevronDown, ChevronUp, Zap, Clock, RotateCcw, Wifi, Cpu, ExternalLink, Smartphone, Radio,
-  ShoppingCart, CloudSun, Users, LogOut, Music, X
+  ShoppingCart, CloudSun, Users, LogOut, Music, X, Play, Square, SkipBack, SkipForward, Search, Loader2
 } from "lucide-react";
 import { Device, SystemLog, ConnectionConfig, ChatMessage } from "./types";
 import ConnectionSettings from "./components/ConnectionSettings";
@@ -939,6 +939,15 @@ export function parseRouteFromPath(
   return { mode: "full" };
 }
 
+const MEDIA_CATEGORIES = [
+  { id: "english party", label: "English Party" },
+  { id: "english top 100 india", label: "English Top 100 India" },
+  { id: "bollywood hits latest", label: "Bollywood Hits Latest" },
+  { id: "hindi retro", label: "Hindi Retro" },
+  { id: "english gym", label: "English Gym" },
+  { id: "bollywood gym", label: "Bollywood Gym" },
+];
+
 export default function App() {
   // Route state derived from URL path (e.g. /helper -> shopping, /living_room -> living room)
   const [routeInfo, setRouteInfo] = useState<{ mode: "full" | "shopping" | "room"; room?: string }>(() => {
@@ -1031,9 +1040,12 @@ export default function App() {
         setIsConfigAuthenticated(true);
         setConfigAuthPassword("");
       } else {
+        const errData = await res.json().catch(() => ({}));
+        console.error("Config auth failed:", res.status, errData);
         setConfigAuthError(true);
       }
     } catch (err) {
+      console.error("Config auth request error:", err);
       setConfigAuthError(true);
     } finally {
       setIsVerifyingConfig(false);
@@ -1083,6 +1095,14 @@ export default function App() {
   const [selectedLanguage, setSelectedLanguage] = useState("en-IN");
   const [isMobile, setIsMobile] = useState<boolean>(false);
 
+  // Media Center State
+  const [mediaSearchQuery, setMediaSearchQuery] = useState("");
+  const [mediaSuggestions, setMediaSuggestions] = useState<any[]>([]);
+  const [isSearchingMedia, setIsSearchingMedia] = useState(false);
+  const [currentMediaTrack, setCurrentMediaTrack] = useState<any>(null);
+  const [isMediaPlaying, setIsMediaPlaying] = useState(false);
+  const [activeMediaCategory, setActiveMediaCategory] = useState<string | null>(null);
+
   // User stopped speech recognition ref (prevents auto-restart when user manually clicks orb to stop)
   const userStoppedRef = useRef<boolean>(false);
 
@@ -1101,6 +1121,94 @@ export default function App() {
     window.addEventListener("resize", checkIsMobile);
     return () => window.removeEventListener("resize", checkIsMobile);
   }, []);
+
+  // Poll Media Status
+  useEffect(() => {
+    let interval: any;
+    if (activeTab === "media") {
+      const fetchStatus = async () => {
+        try {
+          const res = await fetch("/api/media/status");
+          if (res.ok) {
+            const status = await res.json();
+            setCurrentMediaTrack(status.currentTrack);
+            setIsMediaPlaying(status.isPlaying);
+          }
+        } catch (err) {}
+      };
+      fetchStatus();
+      interval = setInterval(fetchStatus, 3000);
+    }
+    return () => interval && clearInterval(interval);
+  }, [activeTab]);
+
+  // Handle Search Suggestions
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (mediaSearchQuery.length > 2) {
+        setIsSearchingMedia(true);
+        try {
+          const res = await fetch("/api/media/search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: mediaSearchQuery })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setMediaSuggestions(data.results || []);
+          }
+        } catch (err) {
+          console.error("Search failed", err);
+        } finally {
+          setIsSearchingMedia(false);
+        }
+      } else {
+        setMediaSuggestions([]);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [mediaSearchQuery]);
+
+  const handlePlayMedia = async (track: any, category?: string) => {
+    try {
+      const res = await fetch("/api/media/play", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ track, category })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentMediaTrack(data.track);
+        setIsMediaPlaying(true);
+        if (category) setActiveMediaCategory(category);
+        setMediaSearchQuery("");
+        setMediaSuggestions([]);
+      }
+    } catch (err) {
+      console.error("Failed to play", err);
+    }
+  };
+
+  const handleMediaControl = async (action: "stop" | "next" | "prev") => {
+    try {
+      const res = await fetch("/api/media/control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action })
+      });
+      if (res.ok) {
+        if (action === "stop") {
+          setIsMediaPlaying(false);
+          setCurrentMediaTrack(null);
+        } else {
+          const data = await res.json();
+          if (data.track) setCurrentMediaTrack(data.track);
+        }
+      }
+    } catch (err) {
+      console.error("Control failed", err);
+    }
+  };
 
   // Automation Panel States
   const [automationMode, setAutomationMode] = useState<"all-off" | "all-on" | "custom">("custom");
@@ -3801,34 +3909,185 @@ export default function App() {
         )}
 
         {activeTab === "media" && (
-          <div className="w-full max-w-7xl mx-auto flex flex-col gap-4 animate-fade-in">
-            <div className="flex items-center justify-between bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-rose-500/15 border border-rose-500/30 rounded-xl text-rose-400">
-                  <Music className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">Integrated Media Player</h2>
-                  <p className="text-[10px] text-slate-500 font-mono">YOUTUBE_MUSIC_GATEWAY // LOCAL_IOT_STREAM</p>
+          <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
+
+            {/* Left Sidebar: Categories */}
+            <div className="lg:col-span-3 space-y-4">
+              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <LayoutGrid className="w-4 h-4 text-rose-400" />
+                  Categories
+                </h3>
+                <div className="space-y-2">
+                  {MEDIA_CATEGORIES.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => handlePlayMedia(null, cat.id)}
+                      className={`w-full text-left px-4 py-3 rounded-xl text-xs font-semibold transition-all flex items-center gap-3 border ${
+                        activeMediaCategory === cat.id
+                          ? "bg-rose-500/20 border-rose-500/40 text-white shadow-lg shadow-rose-500/10"
+                          : "bg-white/5 border-transparent text-slate-400 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <div className={`p-1.5 rounded-lg ${activeMediaCategory === cat.id ? "bg-rose-500 text-white" : "bg-slate-800 text-slate-500"}`}>
+                        <Music className="w-3.5 h-3.5" />
+                      </div>
+                      {cat.label}
+                    </button>
+                  ))}
                 </div>
               </div>
-              <button
-                onClick={() => setActiveTab("devices")}
-                className="p-2 text-slate-400 hover:text-white transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+
+              {/* Server Playback Status Card */}
+              <div className="bg-amber-500/5 border border-amber-500/20 p-4 rounded-2xl flex items-start gap-3">
+                <div className="p-2 bg-amber-500/10 rounded-lg">
+                  <Radio className="w-4 h-4 text-amber-400 animate-pulse" />
+                </div>
+                <div>
+                  <h4 className="text-[10px] font-bold text-amber-400 uppercase">Backend Output</h4>
+                  <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                    Audio is streaming directly to the IoT server's hardware speakers.
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl overflow-hidden shadow-2xl h-[700px] relative">
-              <iframe
-                src="https://soundcloud.com/"
-                className="w-full h-full border-none"
-                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                allowFullScreen
-                title="SoundCloud Music"
-              />
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-500 to-amber-500 animate-pulse"></div>
+            {/* Main Content: Search and Now Playing */}
+            <div className="lg:col-span-9 space-y-6">
+
+              {/* Header with Search Bar */}
+              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex flex-col md:flex-row items-center gap-4 relative z-50">
+                <div className="flex items-center gap-3 mr-4">
+                  <div className="p-2 bg-rose-500/15 border border-rose-500/30 rounded-xl text-rose-400">
+                    <Music className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider hidden sm:block">Media Center</h2>
+                </div>
+
+                <div className="flex-1 w-full relative">
+                  <div className="relative group">
+                    <input
+                      type="text"
+                      placeholder="Search songs on internet..."
+                      value={mediaSearchQuery}
+                      onChange={(e) => setMediaSearchQuery(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-rose-500 transition-all"
+                    />
+                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-rose-400" />
+                    {isSearchingMedia && (
+                      <RefreshCw className="w-3.5 h-3.5 absolute right-3.5 top-1/2 -translate-y-1/2 text-rose-400 animate-spin" />
+                    )}
+                  </div>
+
+                  {/* Search Suggestions Dropdown */}
+                  {mediaSuggestions.length > 0 && (
+                    <div className="absolute top-full left-0 w-full mt-2 bg-[#1a1b26] border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-fade-in">
+                      {mediaSuggestions.map((item, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handlePlayMedia(item)}
+                          className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 border-b border-white/5 last:border-none transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-slate-800 flex-shrink-0 overflow-hidden border border-white/5">
+                            {item.thumbnail ? (
+                              <img src={item.thumbnail} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-slate-600">
+                                <Music className="w-4 h-4" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-white truncate">{item.title}</p>
+                            <p className="text-[10px] text-slate-500 truncate">{item.artist}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setActiveTab("devices")}
+                  className="p-2 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Now Playing Area */}
+              <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[500px] text-center relative overflow-hidden group">
+                {/* Background Glow */}
+                <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
+
+                {currentMediaTrack ? (
+                  <div className="relative z-10 animate-fade-in space-y-8 w-full max-w-md">
+                    {/* Album Art */}
+                    <div className="relative mx-auto w-64 h-64">
+                      <div className={`absolute inset-0 bg-rose-500/20 rounded-3xl blur-2xl transition-all duration-1000 ${isMediaPlaying ? 'scale-110 opacity-100' : 'scale-90 opacity-50'}`}></div>
+                      <div className={`relative w-full h-full rounded-3xl border-2 border-white/10 overflow-hidden shadow-2xl transition-transform duration-700 ${isMediaPlaying ? 'scale-100' : 'scale-95'}`}>
+                        {currentMediaTrack.thumbnail ? (
+                          <img src={currentMediaTrack.thumbnail} alt="Album Art" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-slate-900 flex items-center justify-center">
+                            <Music className="w-20 h-20 text-slate-700" />
+                          </div>
+                        )}
+                        {isMediaPlaying && (
+                          <div className="absolute bottom-4 right-4 p-2 bg-rose-500 rounded-full shadow-lg">
+                            <div className="flex gap-0.5">
+                              {[1,2,3].map(i => <div key={i} className="w-1 bg-white rounded-full animate-music-bar" style={{animationDelay: `${i*0.2}s`}}></div>)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Track Info */}
+                    <div className="space-y-2">
+                      <h2 className="text-2xl font-bold text-white tracking-tight">{currentMediaTrack.title}</h2>
+                      <p className="text-rose-400 font-medium">{currentMediaTrack.artist}</p>
+                      <div className="pt-2">
+                        <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-mono text-slate-500 uppercase tracking-widest">
+                          Internet Streaming // 192kbps
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Controls */}
+                    <div className="flex items-center justify-center gap-6">
+                      <button
+                        onClick={() => handleMediaControl("prev")}
+                        className="p-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
+                      >
+                        <SkipBack className="w-6 h-6" />
+                      </button>
+                      <button
+                        onClick={() => handleMediaControl("stop")}
+                        className="p-5 bg-rose-500 hover:bg-rose-400 text-white rounded-full transition-all active:scale-95 shadow-xl shadow-rose-500/20"
+                      >
+                        <Square className="w-6 h-6 fill-current" />
+                      </button>
+                      <button
+                        onClick={() => handleMediaControl("next")}
+                        className="p-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
+                      >
+                        <SkipForward className="w-6 h-6" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative z-10 text-center space-y-6 animate-pulse">
+                    <div className="w-48 h-48 mx-auto bg-white/5 border border-dashed border-white/10 rounded-3xl flex items-center justify-center">
+                      <Music className="w-16 h-16 text-slate-700" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-400 uppercase tracking-widest">Select a Track</h3>
+                      <p className="text-xs text-slate-600 mt-2">Pick a category from the left or search above</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

@@ -937,6 +937,51 @@ function recordVoice() {
             </div>
           </div>
         </div>
+
+        {/* Step 6: Backend Media & Audio Setup */}
+        <div className="bg-[#161a22] border border-[#1e222b] rounded-xl p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="w-6 h-6 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-mono flex items-center justify-center font-bold">6</span>
+              <h3 className="text-sm font-semibold text-white">Backend Media & Audio Setup</h3>
+            </div>
+            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-400 font-semibold">Media Playback</span>
+          </div>
+          <p className="text-xs text-gray-400 leading-relaxed">
+            To enable the AI-powered Media Center, you must install <code className="text-indigo-400 font-mono">mpv</code> and <code className="text-indigo-400 font-mono">yt-dlp</code> on your backend Linux server. This allows the dashboard to stream audio directly from the internet to your server's hardware speakers.
+          </p>
+
+          <div className="relative">
+            <pre className="text-[11px] font-mono p-4 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-gray-300 overflow-x-auto whitespace-pre leading-relaxed">
+{`# 1. Update package list
+sudo apt update
+
+# 2. Install mpv (Media Player)
+sudo apt install -y mpv
+
+# 3. Download and Install yt-dlp (Internet Streamer)
+sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+sudo chmod a+rx /usr/local/bin/yt-dlp
+
+# 4. Verify installation
+mpv --version
+yt-dlp --version`}
+            </pre>
+            <button
+              onClick={() => copyToClipboard(`sudo apt update && sudo apt install -y mpv && sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && sudo chmod a+rx /usr/local/bin/yt-dlp`, 6)}
+              className="absolute top-2 right-2 p-1.5 rounded-md bg-[#161a22] hover:bg-[#1f2633] text-gray-400 hover:text-white transition-colors border border-[#1e222b]"
+              title="Copy setup commands"
+            >
+              {copiedIndex === 6 ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            </button>
+          </div>
+          <div className="bg-amber-500/5 border border-amber-500/20 p-3 rounded-lg">
+            <p className="text-[10px] text-amber-400 leading-relaxed font-sans">
+              <Info className="w-3.5 h-3.5 inline mr-1 mb-0.5" />
+              <strong>Note:</strong> Ensure your server's audio output (ALSA/PulseAudio) is properly configured. If running in a container, you may need to map the <code className="text-indigo-300">/dev/snd</code> device.
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="bg-[#1e1b18] border border-amber-500/10 rounded-xl p-4 flex items-start space-x-3">

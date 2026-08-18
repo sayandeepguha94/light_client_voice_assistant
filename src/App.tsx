@@ -4,7 +4,7 @@ import {
   Settings, HelpCircle, LayoutGrid, CheckCircle2, AlertCircle, 
   Lightbulb, Thermometer, Wind, Lock, Unlock, ShieldAlert, ShieldCheck, Airplay, Send, Laptop,
   ChevronDown, ChevronUp, Zap, Clock, RotateCcw, Wifi, Cpu, ExternalLink, Smartphone, Radio,
-  ShoppingCart, CloudSun, Users, LogOut
+  ShoppingCart, CloudSun, Users, LogOut, Music
 } from "lucide-react";
 import { Device, SystemLog, ConnectionConfig, ChatMessage } from "./types";
 import ConnectionSettings from "./components/ConnectionSettings";
@@ -960,8 +960,8 @@ export default function App() {
     return false;
   });
 
-  // Navigation: "devices" | "shopping" | "chat" | "configurations"
-  const [activeTab, setActiveTab] = useState<"devices" | "shopping" | "chat" | "configurations">(
+  // Navigation: "devices" | "shopping" | "chat" | "configurations" | "media"
+  const [activeTab, setActiveTab] = useState<"devices" | "shopping" | "chat" | "configurations" | "media">(
     () => {
       if (typeof window !== "undefined") {
         const route = parseRouteFromPath(window.location.pathname);
@@ -2931,6 +2931,24 @@ export default function App() {
             </p>
             <span className="text-[9px] font-bold text-cyan-400 font-sans tracking-wider mt-0.5 uppercase">Kolkata IST</span>
           </div>
+          <div className="border-l border-white/10 pl-4 md:pl-6 flex items-center">
+            <button
+              onClick={() => {
+                setRouteInfo({ mode: "full" });
+                setActiveTab("configurations");
+                if (typeof window !== "undefined") window.history.pushState({}, "", "/");
+              }}
+              className={`p-2.5 rounded-xl transition-all duration-300 cursor-pointer flex items-center gap-2 ${
+                activeTab === "configurations"
+                  ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.15)]"
+                  : "bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 border border-transparent"
+              }`}
+              title="Dashboard Configuration"
+            >
+              <Settings className="w-4 h-4" />
+              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">Config</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -2993,17 +3011,17 @@ export default function App() {
                   <button
                     onClick={() => {
                       setRouteInfo({ mode: "full" });
-                      setActiveTab("configurations");
+                      setActiveTab("media");
                       if (typeof window !== "undefined") window.history.pushState({}, "", "/");
                     }}
                     className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-                      activeTab === "configurations"
-                        ? "bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 shadow-[0_0_15px_rgba(99,102,241,0.12)]"
+                      activeTab === "media"
+                        ? "bg-rose-500/15 text-rose-400 border border-rose-500/25 shadow-[0_0_15px_rgba(244,63,94,0.12)]"
                         : "text-slate-400 hover:text-white hover:bg-white/5 border border-transparent"
                     }`}
                   >
-                    <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    <span className="truncate">Config</span>
+                    <Music className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="truncate">Media</span>
                   </button>
                   {isMobile && (
                     <button
@@ -3779,6 +3797,39 @@ export default function App() {
 
             </div>
 
+          </div>
+        )}
+
+        {activeTab === "media" && (
+          <div className="w-full max-w-7xl mx-auto flex flex-col gap-4 animate-fade-in">
+            <div className="flex items-center justify-between bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-rose-500/15 border border-rose-500/30 rounded-xl text-rose-400">
+                  <Music className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">Integrated Media Player</h2>
+                  <p className="text-[10px] text-slate-500 font-mono">YOUTUBE_MUSIC_GATEWAY // LOCAL_IOT_STREAM</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveTab("devices")}
+                className="p-2 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl overflow-hidden shadow-2xl h-[700px] relative">
+              <iframe
+                src="https://music.youtube.com/"
+                className="w-full h-full border-none"
+                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                allowFullScreen
+                title="YouTube Music Integration"
+              />
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-rose-500 to-amber-500 animate-pulse"></div>
+            </div>
           </div>
         )}
 

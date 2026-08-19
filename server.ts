@@ -855,7 +855,6 @@ app.post("/api/proxy", async (req, res) => {
 });
 
 // Media Management State
-let mpvProcess: any = null;
 let currentTrack: any = null;
 let mediaQueue: any[] = [];
 let mediaQueueIndex = -1;
@@ -872,7 +871,10 @@ async function callOpenAI(prompt: string) {
     },
     body: JSON.stringify({
       model: "gpt-4o-mini",
-      messages: [{ role: "system", content: "You are a music recommendation assistant. Always return JSON." }, { role: "user", content: prompt }],
+      messages: [
+        { role: "system", content: "You are a trendy music recommendation assistant. You find the latest hits popular on YouTube, Instagram, and Facebook. Always return JSON." },
+        { role: "user", content: prompt }
+      ],
       response_format: { type: "json_object" }
     })
   });
@@ -886,40 +888,18 @@ async function callOpenAI(prompt: string) {
   return JSON.parse(data.choices[0].message.content);
 }
 
-function stopMpv() {
-  if (mpvProcess) {
-    console.log("[Media] Stopping current playback...");
-    mpvProcess.kill("SIGKILL");
-    mpvProcess = null;
+async function callBridge(bridgeUrl: string, payload: any) {
+  try {
+    const res = await fetch(bridgeUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("[Bridge Error]", err);
+    return false;
   }
-  currentTrack = null;
-}
-
-async function startPlayback(track: any) {
-  stopMpv();
-  currentTrack = track;
-  console.log(`[Media] Starting playback: ${track.title} by ${track.artist}`);
-
-  // Use yt-dlp to get more accurate metadata if needed, but for now we trust OpenAI/mpv
-  const query = track.searchQuery || `${track.title} ${track.artist}`;
-
-  mpvProcess = spawn("mpv", [
-    "--no-video",
-    "--ytdl-format=bestaudio/best",
-    `ytdl://ytsearch1:${query}`
-  ]);
-
-  mpvProcess.stdout.on("data", (data: any) => {
-    // We could parse metadata here if we wanted to be fancy
-  });
-
-  mpvProcess.on("close", (code: number) => {
-    console.log(`[Media] mpv process exited with code ${code}`);
-    // If it finished normally and there is a next song, play it
-    if (code === 0 && mediaQueueIndex < mediaQueue.length - 1) {
-      // autoPlayNext(); // Future improvement
-    }
-  });
 }
 
 // Media Endpoints
@@ -929,7 +909,7 @@ app.post("/api/media/search", async (req, res) => {
     if (!query) return res.status(400).json({ error: "Missing query" });
 
     console.log(`[Media] Searching for: ${query}`);
-    const prompt = `Return a list of 10 popular songs matching or related to the query: "${query}". Format the output as a JSON object with a "results" key containing an array of objects. Each object must have "title", "artist", and "thumbnail" (use a generic music icon URL or similar if unknown), and "searchQuery" string for YouTube.`;
+    const prompt = `Return a list of 10 popular and trendy songs (from YT, IG, FB) related to: "${query}". Return a JSON object with a "results" key containing an array of objects. Each object must have "title", "artist", "thumbnail", and "searchQuery" (the full search string for YouTube).`;
 
     const data = await callOpenAI(prompt);
     return res.json(data);
@@ -941,29 +921,39 @@ app.post("/api/media/search", async (req, res) => {
 
 app.post("/api/media/play", async (req, res) => {
   try {
-    const { track, category, queue } = req.body;
+    const { track, category, queue, bridgeUrl } = req.body;
+
+    if (!bridgeUrl) return res.status(400).json({ error: "Bridge URL required" });
 
     if (queue) {
       mediaQueue = queue;
       mediaQueueIndex = queue.findIndex((t: any) => t.title === track?.title);
     }
 
+    let tracksToPlay: string[] = [];
+
     if (category) {
       console.log(`[Media] Playing category: ${category}`);
-      const prompt = `Return a list of 20 highly relevant songs for the category: "${category}". Format as JSON with "results" array containing objects with "title", "artist", "thumbnail", and "searchQuery".`;
+      const prompt = `Return a list of 20 trendy and latest hits (popular on YouTube, Instagram, Facebook) for the category: "${category}". Return a JSON object with a "results" array of objects containing "title", "artist", "thumbnail", and "searchQuery".`;
       const data = await callOpenAI(prompt);
       mediaQueue = data.results;
       mediaQueueIndex = 0;
-      await startPlayback(mediaQueue[0]);
-      return res.json({ success: true, track: mediaQueue[0] });
+      currentTrack = mediaQueue[0];
+      tracksToPlay = mediaQueue.map(t => t.searchQuery || `${t.title} ${t.artist}`);
+    } else if (track) {
+      currentTrack = track;
+      tracksToPlay = [track.searchQuery || `${track.title} ${track.artist}`];
+    } else {
+      return res.status(400).json({ error: "Track or category required" });
     }
 
-    if (track) {
-      await startPlayback(track);
-      return res.json({ success: true, track });
-    }
+    // Send to bridge
+    const success = await callBridge(bridgeUrl, {
+      action: "play_music",
+      tracks: tracksToPlay
+    });
 
-    return res.status(400).json({ error: "Track or category required" });
+    return res.json({ success, track: currentTrack });
   } catch (error: any) {
     console.error("[Media Play Error]", error.message);
     return res.status(500).json({ error: error.message });
@@ -971,18 +961,24 @@ app.post("/api/media/play", async (req, res) => {
 });
 
 app.post("/api/media/control", async (req, res) => {
-  const { action } = req.body;
+  const { action, bridgeUrl } = req.body;
+  if (!bridgeUrl) return res.status(400).json({ error: "Bridge URL required" });
 
   if (action === "stop") {
-    stopMpv();
+    await callBridge(bridgeUrl, { action: "stop_music" });
+    currentTrack = null;
     return res.json({ success: true });
   }
 
   if (action === "next") {
     if (mediaQueueIndex < mediaQueue.length - 1) {
       mediaQueueIndex++;
-      await startPlayback(mediaQueue[mediaQueueIndex]);
-      return res.json({ success: true, track: mediaQueue[mediaQueueIndex] });
+      currentTrack = mediaQueue[mediaQueueIndex];
+      const success = await callBridge(bridgeUrl, {
+        action: "play_music",
+        tracks: [currentTrack.searchQuery || `${currentTrack.title} ${currentTrack.artist}`]
+      });
+      return res.json({ success, track: currentTrack });
     }
     return res.json({ success: false, message: "End of queue" });
   }
@@ -990,8 +986,12 @@ app.post("/api/media/control", async (req, res) => {
   if (action === "prev") {
     if (mediaQueueIndex > 0) {
       mediaQueueIndex--;
-      await startPlayback(mediaQueue[mediaQueueIndex]);
-      return res.json({ success: true, track: mediaQueue[mediaQueueIndex] });
+      currentTrack = mediaQueue[mediaQueueIndex];
+      const success = await callBridge(bridgeUrl, {
+        action: "play_music",
+        tracks: [currentTrack.searchQuery || `${currentTrack.title} ${currentTrack.artist}`]
+      });
+      return res.json({ success, track: currentTrack });
     }
     return res.json({ success: false, message: "Beginning of queue" });
   }
@@ -1001,7 +1001,6 @@ app.post("/api/media/control", async (req, res) => {
 
 app.get("/api/media/status", (req, res) => {
   res.json({
-    isPlaying: !!mpvProcess,
     currentTrack,
     queueLength: mediaQueue.length,
     queueIndex: mediaQueueIndex

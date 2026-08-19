@@ -290,6 +290,128 @@ if __name__ == "__main__":
     server = ThreadingHTTPServer(("0.0.0.0", PORT), JerryBridgeHandler)
     server.serve_forever()`,
     chromeFlags: `chrome://flags/#allow-insecure-localhost`,
+    musicScript: `import json
+import subprocess
+import sys
+
+def get_youtube_video_id(query: str) -> str:
+    search_term = f"ytsearch1:{query.strip()}"
+    result = subprocess.run(
+        ["yt-dlp", "--no-warnings", "--flat-playlist", "--print", "%(id)s", search_term],
+        capture_output=True, text=True, check=True
+    )
+    for line in result.stdout.splitlines():
+        video_id = line.strip()
+        if video_id: return video_id
+    raise RuntimeError(f"No YouTube result found for: {query!r}")
+
+def play_music(query: str | None = None):
+    if query is None: query = " "
+    if not query.strip(): raise ValueError("Please provide a song or video name.")
+    video_id = get_youtube_video_id(query)
+    video_url = f"https://www.youtube.com/watch?v={video_id}"
+    stream = subprocess.Popen(["streamlink", video_url, "best", "-O"], stdout=subprocess.PIPE)
+    mpv = subprocess.Popen(["mpv", "--no-video", "-"], stdin=stream.stdout)
+    if stream.stdout is not None: stream.stdout.close()
+    mpv.wait()
+    stream.wait()
+
+def play_music_list(tracks):
+    if isinstance(tracks, str): tracks = [tracks]
+    for track in tracks:
+        if not str(track).strip(): continue
+        play_music(str(track).strip())
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        raw = " ".join(sys.argv[1:])
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list): play_music_list(parsed)
+            else: play_music(raw)
+        except json.JSONDecodeError: play_music(raw)`,
+    updatedBridge: `import os
+import json
+import time
+import subprocess
+from http.server import SimpleHTTPRequestHandler, HTTPServer
+import assistant_quen
+
+# Import your actual local modules
+import devices
+from tools import (
+    turn_on, turn_off, set_fan_speed, room_on, room_off, get_state, set_temp
+)
+
+PORT = 8000
+
+class JerryBridgeHandler(SimpleHTTPRequestHandler):
+    def do_OPTIONS(self):
+        self.send_response(200, "ok")
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type")
+        self.end_headers()
+
+    def do_POST(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+        payload = json.loads(post_data.decode('utf-8'))
+
+        action = payload.get("action")
+
+        # New Media Actions
+        if action == "play_music":
+            tracks = payload.get("tracks", [])
+            print(f"[Media] Killing old playback and starting new: {tracks}")
+            subprocess.run("pkill -f music.py", shell=True)
+            subprocess.run("pkill -f mpv", shell=True)
+            subprocess.run("pkill -f streamlink", shell=True)
+            # Start in background
+            subprocess.Popen(["python3", "music.py", json.dumps(tracks)])
+            self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
+            return
+
+        if action == "stop_music":
+            print("[Media] Stopping all playback")
+            subprocess.run("pkill -f music.py", shell=True)
+            subprocess.run("pkill -f mpv", shell=True)
+            subprocess.run("pkill -f streamlink", shell=True)
+            self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
+            return
+
+        # Rest of bridge logic...
+        query_text = payload.get("query") or payload.get("text")
+        if query_text:
+            try:
+                assistant_response = assistant_quen.execute(query_text)
+                self.wfile.write(json.dumps({"status": "success", "message": assistant_response}).encode('utf-8'))
+            except Exception as e:
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode('utf-8'))
+            return
+
+        # Device Control Logic...
+        device_id = payload.get("deviceId")
+        room = payload.get("room")
+        device = payload.get("device")
+        if device_id and "." in device_id:
+            room, device = device_id.split(".", 1)
+
+        res = "No action"
+        if action == "turn_on" and room and device: res = turn_on(room, device)
+        elif action == "turn_off" and room and device: res = turn_off(room, device)
+        elif action == "set_fan_speed" and room and device: res = set_fan_speed(room, device, payload.get("value"))
+
+        self.wfile.write(json.dumps({"status": "success", "message": res}).encode('utf-8'))
+
+if __name__ == "__main__":
+    print(f"Jerry Bridge with Media Control active on {PORT}...")
+    HTTPServer(("0.0.0.0", PORT), JerryBridgeHandler).serve_forever()`,
     devicesModule: `DEVICES = {
     "living room": {
         "party light": "switch.living_room_4node_smart_switch_4_party_light",
@@ -981,6 +1103,76 @@ yt-dlp --version`}
               <strong>Note:</strong> Ensure your server's audio output (ALSA/PulseAudio) is properly configured. If running in a container, you may need to map the <code className="text-indigo-300">/dev/snd</code> device.
             </p>
           </div>
+        </div>
+
+        {/* Step 7: Advanced Music Script Setup */}
+        <div className="bg-[#161a22] border border-[#1e222b] rounded-xl p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="w-6 h-6 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-mono flex items-center justify-center font-bold">7</span>
+              <h3 className="text-sm font-semibold text-white">Advanced Music Script (music.py)</h3>
+            </div>
+            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-400 font-semibold">Media Script</span>
+          </div>
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Create a file named <code className="text-indigo-400 font-mono">music.py</code> on your backend server and paste the following code. This script handles high-quality audio extraction and playback using <code className="text-indigo-300">streamlink</code>.
+          </p>
+          <div className="relative">
+            <pre className="text-[10px] font-mono p-4 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-gray-300 overflow-x-auto whitespace-pre leading-relaxed max-h-64">
+              {codeBlocks.musicScript}
+            </pre>
+            <button
+              onClick={() => copyToClipboard(codeBlocks.musicScript, 7)}
+              className="absolute top-2 right-2 p-1.5 rounded-md bg-[#161a22] hover:bg-[#1f2633] text-gray-400 hover:text-white transition-colors border border-[#1e222b]"
+              title="Copy music.py"
+            >
+              {copiedIndex === 7 ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Step 8: Updated Bridge for Media Integration */}
+        <div className="bg-[#161a22] border border-[#1e222b] rounded-xl p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="w-6 h-6 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-mono flex items-center justify-center font-bold">8</span>
+              <h3 className="text-sm font-semibold text-white">Enhanced IoT Bridge (bridge.py)</h3>
+            </div>
+            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 font-semibold">Updated Core</span>
+          </div>
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Replace your current <code className="text-indigo-400 font-mono">bridge.py</code> with this version. It includes logic to manage <code className="text-indigo-300">music.py</code> processes, ensuring smooth transitions between songs.
+          </p>
+          <div className="relative">
+            <pre className="text-[10px] font-mono p-4 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-gray-300 overflow-x-auto whitespace-pre leading-relaxed max-h-64">
+              {codeBlocks.updatedBridge}
+            </pre>
+            <button
+              onClick={() => copyToClipboard(codeBlocks.updatedBridge, 8)}
+              className="absolute top-2 right-2 p-1.5 rounded-md bg-[#161a22] hover:bg-[#1f2633] text-gray-400 hover:text-white transition-colors border border-[#1e222b]"
+              title="Copy updated bridge.py"
+            >
+              {copiedIndex === 8 ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Updated Step 6 with Streamlink */}
+        <div className="bg-[#161a22] border border-[#1e222b] rounded-xl p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <span className="w-6 h-6 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-mono flex items-center justify-center font-bold">6</span>
+              <h3 className="text-sm font-semibold text-white">Backend Dependencies (Final)</h3>
+            </div>
+            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 font-semibold">Requirements</span>
+          </div>
+          <pre className="text-[10px] font-mono p-3 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-yellow-400">
+{`# 1. System Players
+sudo apt update && sudo apt install -y mpv yt-dlp
+
+# 2. Python Dependencies (for music extraction)
+pip install streamlink`}
+          </pre>
         </div>
       </div>
 

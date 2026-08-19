@@ -940,12 +940,34 @@ export function parseRouteFromPath(
 }
 
 const MEDIA_CATEGORIES = [
-  { id: "english party", label: "English Party" },
-  { id: "english top 100 india", label: "English Top 100 India" },
-  { id: "bollywood hits latest", label: "Bollywood Hits Latest" },
-  { id: "hindi retro", label: "Hindi Retro" },
-  { id: "english gym", label: "English Gym" },
-  { id: "bollywood gym", label: "Bollywood Gym" },
+  {
+    id: "party",
+    label: "Party Hits",
+    sub: [
+      { id: "latest hindi party songs trendy", label: "Hindi" },
+      { id: "top trendy english party songs", label: "English" },
+      { id: "party mix hindi and english latest", label: "Mix" }
+    ]
+  },
+  {
+    id: "workout",
+    label: "Workout Energy",
+    sub: [
+      { id: "hindi workout gym songs trendy", label: "Hindi" },
+      { id: "english workout hits gym popular", label: "English" },
+      { id: "gym motivation mix hindi english trendy", label: "Mix" }
+    ]
+  },
+  {
+    id: "moods",
+    label: "Mood Suggestions",
+    sub: [
+      { id: "calm and relaxing hits hindi english mix", label: "Calm" },
+      { id: "joyful and happy songs trendy", label: "Joy" },
+      { id: "romantic hits latest hindi english", label: "Romantic" },
+      { id: "sad and soulful trendy songs", label: "Sad" }
+    ]
+  }
 ];
 
 export default function App() {
@@ -1171,10 +1193,11 @@ export default function App() {
 
   const handlePlayMedia = async (track: any, category?: string) => {
     try {
+      const bridgeUrl = `http://${config.serverIp}:${config.serverPort}`;
       const res = await fetch("/api/media/play", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ track, category })
+        body: JSON.stringify({ track, category, bridgeUrl })
       });
       if (res.ok) {
         const data = await res.json();
@@ -1191,10 +1214,11 @@ export default function App() {
 
   const handleMediaControl = async (action: "stop" | "next" | "prev") => {
     try {
+      const bridgeUrl = `http://${config.serverIp}:${config.serverPort}`;
       const res = await fetch("/api/media/control", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action })
+        body: JSON.stringify({ action, bridgeUrl })
       });
       if (res.ok) {
         if (action === "stop") {
@@ -2295,6 +2319,16 @@ export default function App() {
   // core command processor
   const handleProcessCommand = async (text: string) => {
     if (!text.trim()) return;
+
+    // Requirement: "when i will chat or say a song name then it will send in list only but just one song."
+    if (text.toLowerCase().startsWith("play ")) {
+      const songName = text.substring(5).trim();
+      if (songName) {
+        handlePlayMedia({ title: songName, artist: "Internet Search" });
+        return;
+      }
+    }
+
     setIsProcessing(true);
     setAiResponse("Processing command payload...");
     addLog("info", `Forwarding text query to local Jerry AI server at http://${config.serverIp}:${config.serverPort}...`, `Query: "${text}"`);
@@ -3916,24 +3950,31 @@ export default function App() {
               <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                   <LayoutGrid className="w-4 h-4 text-rose-400" />
-                  Categories
+                  Playlists & Moods
                 </h3>
-                <div className="space-y-2">
-                  {MEDIA_CATEGORIES.map(cat => (
-                    <button
-                      key={cat.id}
-                      onClick={() => handlePlayMedia(null, cat.id)}
-                      className={`w-full text-left px-4 py-3 rounded-xl text-xs font-semibold transition-all flex items-center gap-3 border ${
-                        activeMediaCategory === cat.id
-                          ? "bg-rose-500/20 border-rose-500/40 text-white shadow-lg shadow-rose-500/10"
-                          : "bg-white/5 border-transparent text-slate-400 hover:bg-white/10 hover:text-white"
-                      }`}
-                    >
-                      <div className={`p-1.5 rounded-lg ${activeMediaCategory === cat.id ? "bg-rose-500 text-white" : "bg-slate-800 text-slate-500"}`}>
-                        <Music className="w-3.5 h-3.5" />
+                <div className="space-y-4">
+                  {MEDIA_CATEGORIES.map(group => (
+                    <div key={group.id} className="space-y-2">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">{group.label}</p>
+                      <div className="grid grid-cols-1 gap-1">
+                        {group.sub.map(cat => (
+                          <button
+                            key={cat.id}
+                            onClick={() => handlePlayMedia(null, cat.id)}
+                            className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-semibold transition-all flex items-center gap-2.5 border ${
+                              activeMediaCategory === cat.id
+                                ? "bg-rose-500/20 border-rose-500/40 text-white shadow-lg shadow-rose-500/10"
+                                : "bg-white/5 border-transparent text-slate-400 hover:bg-white/10 hover:text-white"
+                            }`}
+                          >
+                            <div className={`p-1 rounded-lg ${activeMediaCategory === cat.id ? "bg-rose-500 text-white" : "bg-slate-800 text-slate-500"}`}>
+                              <Music className="w-3 h-3" />
+                            </div>
+                            {cat.label}
+                          </button>
+                        ))}
                       </div>
-                      {cat.label}
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>

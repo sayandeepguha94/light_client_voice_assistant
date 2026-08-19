@@ -1124,6 +1124,7 @@ export default function App() {
   const [currentMediaTrack, setCurrentMediaTrack] = useState<any>(null);
   const [isMediaPlaying, setIsMediaPlaying] = useState(false);
   const [activeMediaCategory, setActiveMediaCategory] = useState<string | null>(null);
+  const [mediaExpandedGroups, setMediaExpandedGroups] = useState<string[]>(["party", "workout", "moods"]);
 
   // User stopped speech recognition ref (prevents auto-restart when user manually clicks orb to stop)
   const userStoppedRef = useRef<boolean>(false);
@@ -1232,6 +1233,14 @@ export default function App() {
     } catch (err) {
       console.error("Control failed", err);
     }
+  };
+
+  const toggleMediaGroup = (groupId: string) => {
+    setMediaExpandedGroups(prev =>
+      prev.includes(groupId)
+        ? prev.filter(g => g !== groupId)
+        : [...prev, groupId]
+    );
   };
 
   // Automation Panel States
@@ -3945,55 +3954,7 @@ export default function App() {
         {activeTab === "media" && (
           <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
 
-            {/* Left Sidebar: Categories */}
-            <div className="lg:col-span-3 space-y-4">
-              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <LayoutGrid className="w-4 h-4 text-rose-400" />
-                  Playlists & Moods
-                </h3>
-                <div className="space-y-4">
-                  {MEDIA_CATEGORIES.map(group => (
-                    <div key={group.id} className="space-y-2">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-2">{group.label}</p>
-                      <div className="grid grid-cols-1 gap-1">
-                        {group.sub.map(cat => (
-                          <button
-                            key={cat.id}
-                            onClick={() => handlePlayMedia(null, cat.id)}
-                            className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-semibold transition-all flex items-center gap-2.5 border ${
-                              activeMediaCategory === cat.id
-                                ? "bg-rose-500/20 border-rose-500/40 text-white shadow-lg shadow-rose-500/10"
-                                : "bg-white/5 border-transparent text-slate-400 hover:bg-white/10 hover:text-white"
-                            }`}
-                          >
-                            <div className={`p-1 rounded-lg ${activeMediaCategory === cat.id ? "bg-rose-500 text-white" : "bg-slate-800 text-slate-500"}`}>
-                              <Music className="w-3 h-3" />
-                            </div>
-                            {cat.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Server Playback Status Card */}
-              <div className="bg-amber-500/5 border border-amber-500/20 p-4 rounded-2xl flex items-start gap-3">
-                <div className="p-2 bg-amber-500/10 rounded-lg">
-                  <Radio className="w-4 h-4 text-amber-400 animate-pulse" />
-                </div>
-                <div>
-                  <h4 className="text-[10px] font-bold text-amber-400 uppercase">Backend Output</h4>
-                  <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-                    Audio is streaming directly to the IoT server's hardware speakers.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Main Content: Search and Now Playing */}
+            {/* Left Column: Search and Player (9 Cols) */}
             <div className="lg:col-span-9 space-y-6">
 
               {/* Header with Search Bar */}
@@ -4029,14 +3990,8 @@ export default function App() {
                           onClick={() => handlePlayMedia(item)}
                           className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 border-b border-white/5 last:border-none transition-colors"
                         >
-                          <div className="w-8 h-8 rounded-lg bg-slate-800 flex-shrink-0 overflow-hidden border border-white/5">
-                            {item.thumbnail ? (
-                              <img src={item.thumbnail} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-slate-600">
-                                <Music className="w-4 h-4" />
-                              </div>
-                            )}
+                          <div className="w-8 h-8 rounded-lg bg-slate-800 flex-shrink-0 overflow-hidden border border-white/5 flex items-center justify-center">
+                            <Music className="w-4 h-4 text-rose-500" />
                           </div>
                           <div className="min-w-0">
                             <p className="text-xs font-bold text-white truncate">{item.title}</p>
@@ -4056,28 +4011,22 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Now Playing Area */}
+              {/* Player Area */}
               <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[500px] text-center relative overflow-hidden group">
                 {/* Background Glow */}
                 <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
 
                 {currentMediaTrack ? (
                   <div className="relative z-10 animate-fade-in space-y-8 w-full max-w-md">
-                    {/* Album Art */}
-                    <div className="relative mx-auto w-64 h-64">
-                      <div className={`absolute inset-0 bg-rose-500/20 rounded-3xl blur-2xl transition-all duration-1000 ${isMediaPlaying ? 'scale-110 opacity-100' : 'scale-90 opacity-50'}`}></div>
-                      <div className={`relative w-full h-full rounded-3xl border-2 border-white/10 overflow-hidden shadow-2xl transition-transform duration-700 ${isMediaPlaying ? 'scale-100' : 'scale-95'}`}>
-                        {currentMediaTrack.thumbnail ? (
-                          <img src={currentMediaTrack.thumbnail} alt="Album Art" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full bg-slate-900 flex items-center justify-center">
-                            <Music className="w-20 h-20 text-slate-700" />
-                          </div>
-                        )}
+                    {/* Stylized Jerry Icon (Replacing Dynamic Album Art) */}
+                    <div className="relative mx-auto w-40 h-40">
+                      <div className={`absolute inset-0 bg-rose-500/20 rounded-full blur-2xl transition-all duration-1000 ${isMediaPlaying ? 'scale-110 opacity-100' : 'scale-90 opacity-50'}`}></div>
+                      <div className={`relative w-full h-full rounded-full border-2 border-rose-500/30 bg-black flex items-center justify-center shadow-2xl transition-transform duration-700 ${isMediaPlaying ? 'scale-100' : 'scale-95'}`}>
+                        <Radio className={`w-16 h-16 text-rose-600 transition-all ${isMediaPlaying ? 'animate-pulse' : 'opacity-40'}`} />
                         {isMediaPlaying && (
-                          <div className="absolute bottom-4 right-4 p-2 bg-rose-500 rounded-full shadow-lg">
+                          <div className="absolute -bottom-2 right-4 p-1.5 bg-rose-500 rounded-full shadow-lg">
                             <div className="flex gap-0.5">
-                              {[1,2,3].map(i => <div key={i} className="w-1 bg-white rounded-full animate-music-bar" style={{animationDelay: `${i*0.2}s`}}></div>)}
+                              {[1,2,3].map(i => <div key={i} className="w-0.5 bg-white rounded-full animate-music-bar" style={{animationDelay: `${i*0.2}s`}}></div>)}
                             </div>
                           </div>
                         )}
@@ -4086,11 +4035,11 @@ export default function App() {
 
                     {/* Track Info */}
                     <div className="space-y-2">
-                      <h2 className="text-2xl font-bold text-white tracking-tight">{currentMediaTrack.title}</h2>
-                      <p className="text-rose-400 font-medium">{currentMediaTrack.artist}</p>
+                      <h2 className="text-xl font-bold text-white tracking-tight">{currentMediaTrack.title}</h2>
+                      <p className="text-rose-400 text-sm font-medium">{currentMediaTrack.artist}</p>
                       <div className="pt-2">
-                        <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-mono text-slate-500 uppercase tracking-widest">
-                          Internet Streaming // 192kbps
+                        <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-mono text-slate-500 uppercase tracking-widest">
+                          Internet Streaming // Jerry_Core
                         </span>
                       </div>
                     </div>
@@ -4101,35 +4050,97 @@ export default function App() {
                         onClick={() => handleMediaControl("prev")}
                         className="p-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
                       >
-                        <SkipBack className="w-6 h-6" />
+                        <SkipBack className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleMediaControl("stop")}
-                        className="p-5 bg-rose-500 hover:bg-rose-400 text-white rounded-full transition-all active:scale-95 shadow-xl shadow-rose-500/20"
+                        className="p-4 bg-rose-500 hover:bg-rose-400 text-white rounded-full transition-all active:scale-95 shadow-xl shadow-rose-500/20"
                       >
-                        <Square className="w-6 h-6 fill-current" />
+                        <Square className="w-5 h-5 fill-current" />
                       </button>
                       <button
                         onClick={() => handleMediaControl("next")}
                         className="p-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
                       >
-                        <SkipForward className="w-6 h-6" />
+                        <SkipForward className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div className="relative z-10 text-center space-y-6 animate-pulse">
-                    <div className="w-48 h-48 mx-auto bg-white/5 border border-dashed border-white/10 rounded-3xl flex items-center justify-center">
-                      <Music className="w-16 h-16 text-slate-700" />
+                    <div className="w-32 h-32 mx-auto bg-white/5 border border-dashed border-white/10 rounded-full flex items-center justify-center">
+                      <Radio className="w-12 h-12 text-slate-700" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-slate-400 uppercase tracking-widest">Select a Track</h3>
-                      <p className="text-xs text-slate-600 mt-2">Pick a category from the left or search above</p>
+                      <h3 className="text-lg font-bold text-slate-400 uppercase tracking-widest">Awaiting Selection</h3>
+                      <p className="text-[10px] text-slate-600 mt-2">Pick a trendy playlist from the sidebar</p>
                     </div>
                   </div>
                 )}
               </div>
             </div>
+
+            {/* Right Column: Categories (3 Cols) */}
+            <div className="lg:col-span-3 space-y-4">
+              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <LayoutGrid className="w-4 h-4 text-rose-400" />
+                  Playlists & Moods
+                </h3>
+                <div className="space-y-3">
+                  {MEDIA_CATEGORIES.map(group => {
+                    const isExpanded = mediaExpandedGroups.includes(group.id);
+
+                    return (
+                      <div key={group.id} className="space-y-1">
+                        <button
+                          onClick={() => toggleMediaGroup(group.id)}
+                          className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-white/5 rounded-lg transition-colors group/header"
+                        >
+                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest group-hover/header:text-slate-300">{group.label}</span>
+                          {isExpanded ? <ChevronUp className="w-3 h-3 text-slate-600" /> : <ChevronDown className="w-3 h-3 text-slate-600" />}
+                        </button>
+
+                        {isExpanded && (
+                          <div className="grid grid-cols-1 gap-1 animate-fade-in pl-1">
+                            {group.sub.map(cat => (
+                              <button
+                                key={cat.id}
+                                onClick={() => handlePlayMedia(null, cat.id)}
+                                className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-semibold transition-all flex items-center gap-2.5 border ${
+                                  activeMediaCategory === cat.id
+                                    ? "bg-rose-500/20 border-rose-500/40 text-white shadow-lg shadow-rose-500/10"
+                                    : "bg-white/5 border-transparent text-slate-400 hover:bg-white/10 hover:text-white"
+                                }`}
+                              >
+                                <div className={`p-1 rounded-lg ${activeMediaCategory === cat.id ? "bg-rose-500 text-white" : "bg-slate-800 text-slate-500"}`}>
+                                  <Music className="w-3 h-3" />
+                                </div>
+                                {cat.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Server Playback Status Card */}
+              <div className="bg-amber-500/5 border border-amber-500/20 p-4 rounded-2xl flex items-start gap-3">
+                <div className="p-2 bg-amber-500/10 rounded-lg">
+                  <Radio className="w-4 h-4 text-amber-400 animate-pulse" />
+                </div>
+                <div>
+                  <h4 className="text-[10px] font-bold text-amber-400 uppercase">Backend Output</h4>
+                  <p className="text-[10px] text-slate-500 mt-1 leading-relaxed leading-tight">
+                    Audio is streaming directly to the IoT server's hardware speakers.
+                  </p>
+                </div>
+              </div>
+            </div>
+
           </div>
         )}
 

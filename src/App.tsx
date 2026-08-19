@@ -1124,7 +1124,8 @@ export default function App() {
   const [currentMediaTrack, setCurrentMediaTrack] = useState<any>(null);
   const [isMediaPlaying, setIsMediaPlaying] = useState(false);
   const [activeMediaCategory, setActiveMediaCategory] = useState<string | null>(null);
-  const [mediaExpandedGroups, setMediaExpandedGroups] = useState<string[]>(["party", "workout", "moods"]);
+  const [mediaExpandedGroups, setMediaExpandedGroups] = useState<string[]>([]);
+  const [currentMediaContext, setCurrentMediaContext] = useState<string | null>(null);
 
   // User stopped speech recognition ref (prevents auto-restart when user manually clicks orb to stop)
   const userStoppedRef = useRef<boolean>(false);
@@ -1192,19 +1193,32 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [mediaSearchQuery]);
 
-  const handlePlayMedia = async (track: any, category?: string) => {
+  const handlePlayMedia = async (track: any, categoryId?: string) => {
     try {
       const bridgeUrl = `http://${config.serverIp}:${config.serverPort}`;
+
+      // Determine context text
+      let contextText = null;
+      if (categoryId) {
+        MEDIA_CATEGORIES.forEach(group => {
+          const cat = group.sub.find(s => s.id === categoryId);
+          if (cat) contextText = `${group.label}, ${cat.label}`;
+        });
+      } else if (track) {
+        contextText = `Search Result: ${track.title}`;
+      }
+
       const res = await fetch("/api/media/play", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ track, category, bridgeUrl })
+        body: JSON.stringify({ track, category: categoryId, bridgeUrl })
       });
       if (res.ok) {
         const data = await res.json();
         setCurrentMediaTrack(data.track);
         setIsMediaPlaying(true);
-        if (category) setActiveMediaCategory(category);
+        if (categoryId) setActiveMediaCategory(categoryId);
+        if (contextText) setCurrentMediaContext(contextText);
         setMediaSearchQuery("");
         setMediaSuggestions([]);
       }
@@ -1511,6 +1525,7 @@ export default function App() {
     }
   ]);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const mediaConsoleRef = useRef<HTMLDivElement>(null);
 
   const toggleRoom = (roomName: string) => {
     setExpandedRooms(prev => {
@@ -2156,6 +2171,13 @@ export default function App() {
     }
   }, [chatMessages, activeTab]);
 
+  // Auto-scroll media console
+  useEffect(() => {
+    if (activeTab === "media" && mediaConsoleRef.current) {
+      mediaConsoleRef.current.scrollTop = mediaConsoleRef.current.scrollHeight;
+    }
+  }, [logs, activeTab]);
+
   const toggleListening = () => {
     if (!speechSupported) {
       addLog("warning", "Speech Recognition is offline.", "Please open app in a new browser tab or verify browser microphone permissions.");
@@ -2333,6 +2355,7 @@ export default function App() {
     if (text.toLowerCase().startsWith("play ")) {
       const songName = text.substring(5).trim();
       if (songName) {
+        setCurrentMediaContext(`Voice Command: ${songName}`);
         handlePlayMedia({ title: songName, artist: "Internet Search" });
         return;
       }
@@ -3952,12 +3975,10 @@ export default function App() {
         )}
 
         {activeTab === "media" && (
-          <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
+          <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in pb-10">
 
-            {/* Left Column: Search and Player (9 Cols) */}
-            <div className="lg:col-span-9 space-y-6">
-
-              {/* Header with Search Bar */}
+            {/* TOP ROW: Header with Search Bar (Full Width) */}
+            <div className="lg:col-span-12">
               <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex flex-col md:flex-row items-center gap-4 relative z-50">
                 <div className="flex items-center gap-3 mr-4">
                   <div className="p-2 bg-rose-500/15 border border-rose-500/30 rounded-xl text-rose-400">
@@ -4010,21 +4031,33 @@ export default function App() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
+            </div>
 
+            {/* MIDDLE ROW: Player (6) and Playlists (6) */}
+            <div className="lg:col-span-6 space-y-6">
               {/* Player Area */}
-              <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[500px] text-center relative overflow-hidden group">
+              <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[460px] text-center relative overflow-hidden group">
+                {/* Now Playing Category Label */}
+                {currentMediaContext && (
+                  <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 w-full px-4 animate-fade-in">
+                    <p className="text-[10px] font-black text-rose-500/60 uppercase tracking-[0.2em] mb-1">Now Playing</p>
+                    <p className="text-sm font-bold text-white tracking-wide truncate max-w-[80%] mx-auto">{currentMediaContext}</p>
+                    <div className="w-12 h-0.5 bg-rose-500/30 mx-auto mt-2 rounded-full"></div>
+                  </div>
+                )}
+
                 {/* Background Glow */}
                 <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
 
                 {currentMediaTrack ? (
                   <div className="relative z-10 animate-fade-in space-y-8 w-full max-w-md">
-                    {/* Stylized Jerry Icon (Replacing Dynamic Album Art) */}
-                    <div className="relative mx-auto w-40 h-40">
+                    {/* Stylized Jerry Icon */}
+                    <div className="relative mx-auto w-32 h-32">
                       <div className={`absolute inset-0 bg-rose-500/20 rounded-full blur-2xl transition-all duration-1000 ${isMediaPlaying ? 'scale-110 opacity-100' : 'scale-90 opacity-50'}`}></div>
                       <div className={`relative w-full h-full rounded-full border-2 border-rose-500/30 bg-black flex items-center justify-center shadow-2xl transition-transform duration-700 ${isMediaPlaying ? 'scale-100' : 'scale-95'}`}>
-                        <Radio className={`w-16 h-16 text-rose-600 transition-all ${isMediaPlaying ? 'animate-pulse' : 'opacity-40'}`} />
+                        <Radio className={`w-12 h-12 text-rose-600 transition-all ${isMediaPlaying ? 'animate-pulse' : 'opacity-40'}`} />
                         {isMediaPlaying && (
-                          <div className="absolute -bottom-2 right-4 p-1.5 bg-rose-500 rounded-full shadow-lg">
+                          <div className="absolute -bottom-1 right-2 p-1.5 bg-rose-500 rounded-full shadow-lg">
                             <div className="flex gap-0.5">
                               {[1,2,3].map(i => <div key={i} className="w-0.5 bg-white rounded-full animate-music-bar" style={{animationDelay: `${i*0.2}s`}}></div>)}
                             </div>
@@ -4035,11 +4068,11 @@ export default function App() {
 
                     {/* Track Info */}
                     <div className="space-y-2">
-                      <h2 className="text-xl font-bold text-white tracking-tight">{currentMediaTrack.title}</h2>
+                      <h2 className="text-xl font-bold text-white tracking-tight leading-tight">{currentMediaTrack.title}</h2>
                       <p className="text-rose-400 text-sm font-medium">{currentMediaTrack.artist}</p>
-                      <div className="pt-2">
-                        <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[9px] font-mono text-slate-500 uppercase tracking-widest">
-                          Internet Streaming // Jerry_Core
+                      <div className="pt-1">
+                        <span className="px-3 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-mono text-slate-500 uppercase tracking-widest">
+                          Active_Session // Jerry_IoT
                         </span>
                       </div>
                     </div>
@@ -4048,7 +4081,7 @@ export default function App() {
                     <div className="flex items-center justify-center gap-6">
                       <button
                         onClick={() => handleMediaControl("prev")}
-                        className="p-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
+                        className="p-2.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
                       >
                         <SkipBack className="w-5 h-5" />
                       </button>
@@ -4068,46 +4101,45 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="relative z-10 text-center space-y-6 animate-pulse">
-                    <div className="w-32 h-32 mx-auto bg-white/5 border border-dashed border-white/10 rounded-full flex items-center justify-center">
-                      <Radio className="w-12 h-12 text-slate-700" />
+                    <div className="w-28 h-28 mx-auto bg-white/5 border border-dashed border-white/10 rounded-full flex items-center justify-center">
+                      <Radio className="w-10 h-10 text-slate-700" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-slate-400 uppercase tracking-widest">Awaiting Selection</h3>
-                      <p className="text-[10px] text-slate-600 mt-2">Pick a trendy playlist from the sidebar</p>
+                      <h3 className="text-lg font-bold text-slate-400 uppercase tracking-widest">Select Trendy Music</h3>
+                      <p className="text-[10px] text-slate-600 mt-2">Pick a category or search above</p>
                     </div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Right Column: Categories (3 Cols) */}
-            <div className="lg:col-span-3 space-y-4">
-              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <div className="lg:col-span-6 space-y-4">
+              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl h-full flex flex-col min-h-[460px]">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-white/5 pb-3">
                   <LayoutGrid className="w-4 h-4 text-rose-400" />
-                  Playlists & Moods
+                  Trendy Playlists & Moods
                 </h3>
-                <div className="space-y-3">
+                <div className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[300px]">
                   {MEDIA_CATEGORIES.map(group => {
                     const isExpanded = mediaExpandedGroups.includes(group.id);
 
                     return (
-                      <div key={group.id} className="space-y-1">
+                      <div key={group.id} className="space-y-2">
                         <button
                           onClick={() => toggleMediaGroup(group.id)}
-                          className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-white/5 rounded-lg transition-colors group/header"
+                          className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 rounded-xl transition-colors group/header border border-white/5"
                         >
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest group-hover/header:text-slate-300">{group.label}</span>
-                          {isExpanded ? <ChevronUp className="w-3 h-3 text-slate-600" /> : <ChevronDown className="w-3 h-3 text-slate-600" />}
+                          <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest group-hover/header:text-slate-200">{group.label}</span>
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-rose-500" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-600" />}
                         </button>
 
                         {isExpanded && (
-                          <div className="grid grid-cols-1 gap-1 animate-fade-in pl-1">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 animate-fade-in pl-1">
                             {group.sub.map(cat => (
                               <button
                                 key={cat.id}
                                 onClick={() => handlePlayMedia(null, cat.id)}
-                                className={`w-full text-left px-3 py-2 rounded-xl text-[11px] font-semibold transition-all flex items-center gap-2.5 border ${
+                                className={`w-full text-left px-3 py-2.5 rounded-xl text-[11px] font-semibold transition-all flex items-center gap-2.5 border ${
                                   activeMediaCategory === cat.id
                                     ? "bg-rose-500/20 border-rose-500/40 text-white shadow-lg shadow-rose-500/10"
                                     : "bg-white/5 border-transparent text-slate-400 hover:bg-white/10 hover:text-white"
@@ -4125,18 +4157,68 @@ export default function App() {
                     );
                   })}
                 </div>
-              </div>
 
-              {/* Server Playback Status Card */}
-              <div className="bg-amber-500/5 border border-amber-500/20 p-4 rounded-2xl flex items-start gap-3">
-                <div className="p-2 bg-amber-500/10 rounded-lg">
-                  <Radio className="w-4 h-4 text-amber-400 animate-pulse" />
+                {/* Server Playback Status Card */}
+                <div className="mt-auto pt-6 border-t border-white/5 bg-amber-500/5 border-none p-4 rounded-2xl flex items-start gap-3">
+                  <div className="p-2 bg-amber-500/10 rounded-lg">
+                    <Radio className="w-4 h-4 text-amber-400 animate-pulse" />
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Backend Bridge Active</h4>
+                    <p className="text-[10px] text-slate-500 mt-1 leading-tight">
+                      Streaming hits to IoT server speakers via music.py
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-[10px] font-bold text-amber-400 uppercase">Backend Output</h4>
-                  <p className="text-[10px] text-slate-500 mt-1 leading-relaxed leading-tight">
-                    Audio is streaming directly to the IoT server's hardware speakers.
-                  </p>
+              </div>
+            </div>
+
+            {/* BOTTOM ROW: Console Output (Full Width) */}
+            <div className="lg:col-span-12">
+              <div className="bg-[#0b0c10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                <div className="bg-[#1a1b26] px-4 py-2 border-b border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1.5 mr-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-rose-500/50"></div>
+                      <div className="w-2.5 h-2.5 rounded-full bg-amber-500/50"></div>
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/50"></div>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">Backend_IoT_Console // media_stream_output</span>
+                  </div>
+                  <button
+                    onClick={() => setLogs([])}
+                    className="text-[9px] text-slate-600 hover:text-rose-400 font-mono transition-colors"
+                  >
+                    Clear_Cache
+                  </button>
+                </div>
+                <div
+                  ref={mediaConsoleRef}
+                  className="h-32 overflow-y-auto p-3 font-mono text-[10px] space-y-1 scrollbar-thin scrollbar-thumb-white/10"
+                >
+                  {logs.length === 0 ? (
+                    <div className="text-slate-700 italic">Waiting for backend telemetry...</div>
+                  ) : (
+                    logs.map((log) => (
+                      <div key={log.id} className="flex gap-3 leading-relaxed group">
+                        <span className="text-slate-600 flex-shrink-0">[{log.timestamp}]</span>
+                        <span className={`flex-shrink-0 uppercase font-bold ${
+                          log.type === "error" ? "text-rose-500" :
+                          log.type === "success" ? "text-emerald-500" :
+                          log.type === "warning" ? "text-amber-500" :
+                          log.type === "voice" ? "text-purple-500" : "text-cyan-500"
+                        }`}>
+                          {log.type}
+                        </span>
+                        <span className="text-slate-300 break-words">{log.message}</span>
+                        {log.details && (
+                          <span className="text-slate-600 italic opacity-0 group-hover:opacity-100 transition-opacity">
+                            {log.details}
+                          </span>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>

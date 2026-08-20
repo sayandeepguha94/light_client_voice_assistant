@@ -294,97 +294,112 @@ if __name__ == "__main__":
 import os
 import subprocess
 import sys
+import signal
+
+# Global playback state
+tracks = []
+current_index = 0
+mpv_process = None
+
+def kill_current():
+    global mpv_process
+    if mpv_process:
+        try:
+            mpv_process.terminate()
+            subprocess.run("pkill -f streamlink", shell=True)
+        except:
+            pass
+
+def signal_handler(signum, frame):
+    global current_index
+    if signum == signal.SIGUSR1:
+        print("[Media] Remote Command: NEXT")
+        # current_index will be incremented by the while loop naturally after kill
+    elif signum == signal.SIGUSR2:
+        print("[Media] Remote Command: PREV")
+        current_index -= 2  # Go back 2 (one to undo the loop increment, one for previous)
+        if current_index < -1: current_index = -1
+
+    kill_current()
+
+signal.signal(signal.SIGUSR1, signal_handler)
+signal.signal(signal.SIGUSR2, signal_handler)
 
 def get_youtube_video_id(query: str) -> str:
     search_term = f"ytsearch1:{query.strip()}"
-    result = subprocess.run(
-        ["yt-dlp", "--no-warnings", "--flat-playlist", "--print", "%(id)s", search_term],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    for line in result.stdout.splitlines():
-        video_id = line.strip()
-        if video_id:
-            return video_id
-    raise RuntimeError(f"No YouTube result found for: {query!r}")
+    try:
+        result = subprocess.run(
+            ["yt-dlp", "--no-warnings", "--flat-playlist", "--print", "%(id)s", search_term],
+            capture_output=True, text=True, check=True
+        )
+        for line in result.stdout.splitlines():
+            if line.strip(): return line.strip()
+    except:
+        pass
+    return None
 
+def play_track(track):
+    global mpv_process
+    video_id = get_youtube_video_id(track)
+    if not video_id:
+        print(f"[Error] Could not find: {track}")
+        return
 
-def play_music(query: str | None = None):
-    if query is None:
-        query = " "
-    if not query.strip():
-        raise ValueError("Please provide a song or video name.")
-
-    video_id = get_youtube_video_id(query)
+    print(f"[Playing] {track}")
     video_url = f"https://www.youtube.com/watch?v={video_id}"
 
     stream = subprocess.Popen(
         ["streamlink", video_url, "best", "-O"],
-        stdout=subprocess.PIPE,
-        stderr=None,
-        text=False,
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
     )
 
-    mpv = subprocess.Popen(
-        [
-            "mpv",
-            "--no-video",
-            "-",
-        ],
-        stdin=stream.stdout,
-        stdout=None,
-        stderr=None,
-        text=False,
+    mpv_process = subprocess.Popen(
+        ["mpv", "--no-video", "-"],
+        stdin=stream.stdout, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
 
-    if stream.stdout is not None:
-        stream.stdout.close()
+    mpv_process.wait()
+    stream.terminate()
 
-    mpv.wait()
-    stream.wait()
+def start_playback(input_data):
+    global tracks, current_index
+    tracks = input_data if isinstance(input_data, list) else [input_data]
+    current_index = 0
 
-
-def play_music_list(tracks):
-    if isinstance(tracks, str):
-        tracks = [tracks]
-
-    for track in tracks:
-        if not str(track).strip():
-            continue
-        print(f"[Playing] {track}")
-        try:
-            play_music(str(track).strip())
-        except Exception as e:
-            print(f"Error playing {track}: {e}")
-
-
-def handle_request(raw: str):
-    text = (raw or "").strip()
-    if text.startswith("["):
-        try:
-            tracks = json.loads(text)
-            if isinstance(tracks, list):
-                play_music_list(tracks)
-                return
-        except Exception:
-            pass
-
-    play_music(text)
-
+    while current_index < len(tracks):
+        if current_index < 0: current_index = 0
+        play_track(tracks[current_index])
+        current_index += 1
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         raw = " ".join(sys.argv[1:])
-        handle_request(raw)
+        try:
+            data = json.loads(raw)
+            start_playback(data)
+        except:
+            start_playback(raw)
     else:
-        print("Usage: python3 music.py <song_name> OR python3 music.py '[\\"song1\\", \\"song2\\"]'")`,
+        print("Usage: python3 music.py <song_name> OR '[\\"song1\\", \\"song2\\"]'")`,
     updatedBridge: `import os
 import json
 import time
 import subprocess
 import re
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+# Device control & Assistant imports
+import assistant_openai
+import devices
+from tools import (
+    turn_on,
+    turn_off,
+    set_fan_speed,
+    room_on,
+    room_off,
+    get_state,
+    set_temp,
+)
 
 try:
     from dotenv import load_dotenv
@@ -401,16 +416,16 @@ except ImportError:
 PORT = 8000
 
 PLAYLIST_PROMPTS = {
-    "party_hits_english": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year English party songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "party_hits_hindi": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi party songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "party_hits_mix": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi + English party songs, alternating Hindi and English, trending social media. No duplicates. Use only 'Song - Artist'.",
-    "workout_energy_english": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year English workout songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "workout_energy_hindi": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi workout songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "workout_energy_mix": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi + English workout songs, alternating Hindi and English, trending social media. No duplicates. Use only 'Song - Artist'.",
-    "moods_calm": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 calm current-year Hindi + English songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "moods_joy": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 joyful current-year Hindi + English songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "moods_romantic": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 romantic current-year Hindi + English songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "moods_sad": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 sad current-year Hindi + English songs trending social media. No duplicates. Use only 'Song - Artist'.",
+    "party_hits_english": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year English party songs trending social media. No duplicates. always shuffle. Use only 'Song - Artist'.",
+    "party_hits_hindi": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi party songs trending social media. No duplicates. always shuffle. Use only 'Song - Artist'.",
+    "party_hits_mix": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi + English party songs, alternating Hindi and English, trending social media. No duplicates. always shuffle. Use only 'Song - Artist'.",
+    "workout_energy_english": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year English workout songs trending social media. No duplicates. always shuffle. Use only 'Song - Artist'.",
+    "workout_energy_hindi": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi workout songs trending social media. No duplicates. always shuffle. Use only 'Song - Artist'.",
+    "workout_energy_mix": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi + English workout songs, alternating Hindi and English, trending social media. No duplicates. always shuffle. Use only 'Song - Artist'.",
+    "moods_calm": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 calm current-year Hindi + English songs trending social media. No duplicates. always shuffle. Use only 'Song - Artist'.",
+    "moods_joy": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 joyful current-year Hindi + English songs trending social media. No duplicates. always shuffle. Use only 'Song - Artist'.",
+    "moods_romantic": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 romantic current-year Hindi + English songs trending social media. No duplicates. always shuffle. Use only 'Song - Artist'.",
+    "moods_sad": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 sad current-year Hindi + English songs trending social media. No duplicates. always shuffle. Use only 'Song - Artist'.",
 }
 
 SPECIAL_ALIASES = {
@@ -462,11 +477,41 @@ def generate_playlist_tracks(playlist_name: str):
 
 class JerryBridgeHandler(SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
+        # Handle CORS preflight requests from local container
         self.send_response(200, "ok")
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type")
         self.end_headers()
+
+    def do_GET(self):
+        # Return all live states of devices polled every 30s
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+
+        print("[Jerry Hub] Received status polling request.")
+        states = {}
+        try:
+            for r in devices.DEVICES:
+                states[r] = {}
+                for d in devices.DEVICES[r]:
+                    val = get_state(r, d)
+                    states[r][d] = val if val is not None else "Unknown"
+
+            response_data = {
+                "status": "success",
+                "states": states
+            }
+        except Exception as e:
+            print(f"[Jerry Hub] Error querying statuses: {e}")
+            response_data = {
+                "status": "error",
+                "response_message": str(e),
+                "message": str(e)
+            }
+        self.wfile.write(json.dumps(response_data).encode('utf-8'))
 
     def do_POST(self):
         self.send_response(200)
@@ -480,6 +525,9 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
 
         action = payload.get("action")
 
+        # ---------------------------------------------------------
+        # Scenario 1: Media Actions (play_music, stop_music, next, prev)
+        # ---------------------------------------------------------
         if action == "play_music":
             raw_query = payload.get("query", "")
             print(f"[Media] Request: {raw_query}")
@@ -522,27 +570,91 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
             return
 
-        # Rest of bridge logic (Assisstant Query)...
-        query_text = payload.get("query") or payload.get("text")
-        if query_text:
-            self.wfile.write(json.dumps({"status": "success", "message": "Command received"}).encode('utf-8'))
+        if action == "media_next":
+            print("[Media] Command: SKIP NEXT")
+            subprocess.run("pkill -USR1 -f music.py", shell=True)
+            self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
             return
 
-        # Device Control Logic...
+        if action == "media_prev":
+            print("[Media] Command: GO PREVIOUS")
+            subprocess.run("pkill -USR2 -f music.py", shell=True)
+            self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
+            return
+
+        # ---------------------------------------------------------
+        # Scenario 2: Manual Dashboard Button Control (Toggles, Sliders)
+        # ---------------------------------------------------------
         device_id = payload.get("deviceId")
-        room = payload.get("room")
-        device = payload.get("device")
+        value = payload.get("value")
+
+        room = None
+        device = None
         if device_id and "." in device_id:
             room, device = device_id.split(".", 1)
+        elif payload.get("room"):
+            room = payload.get("room")
+            device = payload.get("device")
 
-        res = "No action"
-        if action == "turn_on" and room and device: res = "Device turned on"
-        elif action == "turn_off" and room and device: res = "Device turned off"
+        device_actions = ["turn_on", "turn_off", "room_on", "room_off", "set_fan_speed", "set_temp"]
+        if action in device_actions:
+            result_msg = "No action executed"
+            time_init = time.time()
+            try:
+                if action == "turn_on" and room and device:
+                    result_msg = turn_on(room, device)
+                elif action == "turn_off" and room and device:
+                    result_msg = turn_off(room, device)
+                elif action == "room_on" and room:
+                    result_msg = room_on(room)
+                elif action == "room_off" and room:
+                    result_msg = room_off(room)
+                elif action == "set_fan_speed" and room and device:
+                    result_msg = set_fan_speed(room, device, value)
+                elif action == "set_temp" and room and device:
+                    temp_val = int(value) if value is not None else 22
+                    result_msg = set_temp(room, device, temp_val)
 
-        self.wfile.write(json.dumps({"status": "success", "message": res}).encode('utf-8'))
+                elapsed = time.time() - time_init
+                response_data = {
+                    "status": "success",
+                    "response_message": result_msg,
+                    "message": result_msg,
+                    "elapsed": f"{elapsed:.3f} seconds"
+                }
+            except Exception as e:
+                response_data = {"status": "error", "message": str(e)}
+
+            self.wfile.write(json.dumps(response_data).encode('utf-8'))
+            return
+
+        # ---------------------------------------------------------
+        # Scenario 3: Natural Language Query / Spoken Voice Command
+        # ---------------------------------------------------------
+        query_text = payload.get("query") or payload.get("text")
+        if query_text:
+            print(f" -> Passing Spoken/Voice query to Assistant: {query_text}")
+            time_init = time.time()
+            try:
+                assistant_response = assistant_openai.execute(query_text)
+                elapsed = time.time() - time_init
+                response_data = {
+                    "status": "success",
+                    "response_message": assistant_response,
+                    "message": assistant_response,
+                    "nc_message": assistant_response,
+                    "source": "local-openai-assistant"
+                }
+            except Exception as e:
+                response_data = {"status": "error", "message": str(e)}
+
+            self.wfile.write(json.dumps(response_data).encode('utf-8'))
+            return
+
+        self.wfile.write(json.dumps({"status": "error", "message": "No action executed"}).encode('utf-8'))
 
 if __name__ == "__main__":
-    print(f"Jerry Bridge with Media Intelligence active on {PORT}...")
+    print(f"Jerry Bridge with Media & Device Control active on {PORT}...")
     ThreadingHTTPServer(("0.0.0.0", PORT), JerryBridgeHandler).serve_forever()`,
     devicesModule: `DEVICES = {
     "living room": {

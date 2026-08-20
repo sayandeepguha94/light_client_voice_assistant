@@ -4426,7 +4426,7 @@ export default function App() {
                   )}
                 </div>
               </div>
-            </>
+            </div>
           ) : (
             <WeatherPanel onAddLog={addLog} />
           )}

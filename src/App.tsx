@@ -4056,10 +4056,10 @@ export default function App() {
               </div>
             </div>
 
-            {/* MIDDLE ROW: Player (4) and Playlists (4) */}
-            <div className="lg:col-span-4">
+            {/* MIDDLE ROW: Player (6) and Playlists (6) */}
+            <div className="lg:col-span-6">
               {/* Player Area */}
-              <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[520px] text-center relative overflow-hidden group">
+              <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[460px] text-center relative overflow-hidden group">
                 {/* Loading Overlay */}
                 {isMediaLoading && (
                   <div className="absolute inset-0 z-30 bg-[#0b0c10]/80 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
@@ -4144,13 +4144,13 @@ export default function App() {
               </div>
             </div>
 
-            <div className="lg:col-span-4">
-              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl h-full flex flex-col min-h-[520px]">
+            <div className="lg:col-span-6">
+              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl h-full flex flex-col min-h-[460px]">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-white/5 pb-3">
                   <LayoutGrid className="w-4 h-4 text-rose-400" />
                   Trendy Playlists & Moods
                 </h3>
-                <div className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[400px]">
+                <div className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[340px]">
                   {MEDIA_CATEGORIES.map(group => {
                     const isExpanded = mediaExpandedGroups.includes(group.id);
 
@@ -4365,9 +4365,9 @@ export default function App() {
       {isLocalhost && (
         <div className="lg:col-span-4 flex flex-col w-full gap-6">
           {activeTab === "media" ? (
-            <div className="flex flex-col gap-4 h-full min-h-[520px]">
+            <div className="flex flex-col gap-6">
               {/* Media Specific Consoles on the Right */}
-              <div className="bg-[#0b0c10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[320px]">
+              <div className="bg-[#0b0c10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[350px]">
                 <div className="bg-[#1a1b26] px-4 py-2 border-b border-white/5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Music className="w-3.5 h-3.5 text-rose-400" />
@@ -4376,7 +4376,35 @@ export default function App() {
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed text-slate-300 scrollbar-thin scrollbar-thumb-white/10">
                   {lastTrackList ? (
-                    <div className="whitespace-pre-wrap">{lastTrackList}</div>
+                    <div className="whitespace-pre-wrap">
+                      {(() => {
+                        try {
+                          // Try to parse the output if it's a JSON list from music.py
+                          const cleaned = lastTrackList.trim();
+                          if (cleaned.startsWith('[') && cleaned.endsWith(']')) {
+                            const tracks = JSON.parse(cleaned);
+                            if (Array.isArray(tracks)) {
+                              return (
+                                <div className="space-y-1.5">
+                                  <div className="text-[10px] text-rose-500/40 mb-2 font-bold uppercase tracking-widest border-b border-rose-500/10 pb-1">
+                                    Queue Status: {tracks.length} Tracks Ready
+                                  </div>
+                                  {tracks.map((t, idx) => (
+                                    <div key={idx} className="flex gap-2 group/track">
+                                      <span className="text-rose-500/50 flex-shrink-0">{String(idx + 1).padStart(2, '0')}.</span>
+                                      <span className="group-hover/track:text-white transition-colors">{t}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          // Fallback to raw text if parsing fails
+                        }
+                        return lastTrackList;
+                      })()}
+                    </div>
                   ) : isMediaLoading ? (
                     <div className="text-rose-500 animate-pulse font-bold">Loading playlist tracks...</div>
                   ) : (
@@ -4385,7 +4413,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-[#0b0c10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[184px]">
+              <div className="bg-[#0b0c10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[150px]">
                 <div className="bg-[#1a1b26] px-4 py-2 border-b border-white/5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Terminal className="w-3.5 h-3.5 text-cyan-400" />

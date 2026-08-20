@@ -292,139 +292,8 @@ if __name__ == "__main__":
     chromeFlags: `chrome://flags/#allow-insecure-localhost`,
     musicScript: `import json
 import os
-import re
 import subprocess
 import sys
-
-try:
-    from dotenv import load_dotenv
-except ImportError:  # pragma: no cover
-    def load_dotenv():
-        return False
-
-try:
-    from openai import OpenAI
-except ImportError:  # pragma: no cover
-    OpenAI = None
-
-load_dotenv()
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY")) if OpenAI is not None and os.getenv("OPENAI_API_KEY") else None
-
-PLAYLIST_PROMPTS = {
-    "party_hits_english": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year English party songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "party_hits_hindi": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi party songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "party_hits_mix": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi + English party songs, alternating Hindi and English, trending social media. No duplicates. Use only 'Song - Artist'.",
-    "workout_energy_english": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year English workout songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "workout_energy_hindi": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi workout songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "workout_energy_mix": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi + English workout songs, alternating Hindi and English, trending social media. No duplicates. Use only 'Song - Artist'.",
-    "moods_calm": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 calm current-year Hindi + English songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "moods_joy": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 joyful current-year Hindi + English songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "moods_romantic": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 romantic current-year Hindi + English songs trending social media. No duplicates. Use only 'Song - Artist'.",
-    "moods_sad": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 sad current-year Hindi + English songs trending social media. No duplicates. Use only 'Song - Artist'.",
-}
-
-PLAYLIST_CACHE = {}
-
-SPECIAL_ALIASES = {
-    "workout_energy_hits_mix": "workout_energy_mix",
-    "party_hits_hits_mix": "party_hits_mix",
-    "moods": "moods_joy",
-}
-
-
-def normalize_playlist_name(name: str) -> str:
-    value = (name or "").strip().lower().replace(" ", "_")
-    value = re.sub(r"[^a-z0-9_]+", "_", value)
-    value = re.sub(r"_+", "_", value).strip("_")
-    value = SPECIAL_ALIASES.get(value, value)
-    return value
-
-
-def parse_request(raw: str):
-    text = (raw or "").strip()
-    if not text:
-        return {"type": "song", "query": ""}
-
-    if text.startswith("["):
-        try:
-            parsed = json.loads(text)
-            if isinstance(parsed, list):
-                return {"type": "list", "tracks": parsed}
-        except Exception:
-            pass
-
-    lower = text.lower()
-    if "," in text:
-        parts = [p.strip() for p in text.split(",") if p.strip()]
-        for part in parts:
-            part_lower = part.lower()
-            if "playlist" in part_lower:
-                name = part_lower.replace("playlist", "").strip(" _-")
-                if name:
-                    return {"type": "playlist", "playlist": normalize_playlist_name(name)}
-            if "song" in part_lower:
-                candidate = part.replace("song", "", 1).strip(" _-")
-                if candidate:
-                    return {"type": "song", "query": candidate}
-
-        if len(parts) >= 2:
-            left = parts[0]
-            right = parts[1]
-            if "playlist" in right.lower() or "play_list" in right.lower():
-                return {"type": "playlist", "playlist": normalize_playlist_name(left)}
-            if "song" in right.lower():
-                return {"type": "song", "query": left}
-
-    if "playlist" in lower:
-        match = re.search(r"([a-z0-9_]+(?:_[a-z0-9_]+)*)\s*(?:,\s*)?playlist", lower)
-        if match:
-            return {"type": "playlist", "playlist": normalize_playlist_name(match.group(1))}
-        return {"type": "playlist", "playlist": "party_hits_mix"}
-
-    if "song" in lower:
-        match = re.search(r"(.+?)\s*(?:,\s*)?song", lower, re.I)
-        if match:
-            return {"type": "song", "query": match.group(1).strip()}
-
-    if "play" in lower and not "playlist" in lower:
-        query = re.sub(r"^play\\s+", "", lower, flags=re.I).strip()
-        return {"type": "song", "query": query}
-
-    return {"type": "song", "query": text}
-
-
-def generate_playlist_tracks(playlist_name: str):
-    key = normalize_playlist_name(playlist_name)
-    prompt = PLAYLIST_PROMPTS.get(key)
-    if not prompt:
-        raise ValueError(f"Unsupported playlist: {playlist_name}")
-
-    if not client:
-        raise RuntimeError("OpenAI client is not configured. Set OPENAI_API_KEY first.")
-
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",  #"gpt-5-nano",
-        response_format={"type": "json_object"},
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a music curator. Return ONLY valid JSON with a single key named 'songs'. The value must be an array of song strings in the format 'Song Name - Artist'. Do not include commentary, markdown or extra keys.",
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
-    )
-
-    content = response.choices[0].message.content
-    data = json.loads(content)
-    songs = data.get("songs") if isinstance(data, dict) else None
-    if not isinstance(songs, list) or not songs:
-        raise RuntimeError(f"OpenAI did not return songs for playlist: {playlist_name}")
-    return songs
-
 
 def get_youtube_video_id(query: str) -> str:
     search_term = f"ytsearch1:{query.strip()}"
@@ -460,7 +329,6 @@ def play_music(query: str | None = None):
     mpv = subprocess.Popen(
         [
             "mpv",
-            # "--audio-device=alsa/default",
             "--no-video",
             "-",
         ],
@@ -484,57 +352,113 @@ def play_music_list(tracks):
     for track in tracks:
         if not str(track).strip():
             continue
-        play_music(str(track).strip())
+        print(f"[Playing] {track}")
+        try:
+            play_music(str(track).strip())
+        except Exception as e:
+            print(f"Error playing {track}: {e}")
 
 
 def handle_request(raw: str):
-    request = parse_request(raw)
-    kind = request.get("type")
+    text = (raw or "").strip()
+    if text.startswith("["):
+        try:
+            tracks = json.loads(text)
+            if isinstance(tracks, list):
+                play_music_list(tracks)
+                return
+        except Exception:
+            pass
 
-    if kind == "playlist":
-        playlist_name = request.get("playlist")
-        if not playlist_name:
-            raise ValueError("Playlist mode requires a playlist name.")
-        if playlist_name not in PLAYLIST_PROMPTS:
-            raise ValueError(f"Unsupported playlist: {playlist_name}")
-        tracks = generate_playlist_tracks(playlist_name)
-        print(f"Playlist: {playlist_name}")
-        for idx, track in enumerate(tracks, 1):
-            print(f"{idx}. {track}")
-        play_music_list(tracks)
-        return
-
-    if kind == "list":
-        tracks = request.get("tracks") or []
-        print("Playlist from input list:")
-        for idx, track in enumerate(tracks, 1):
-            print(f"{idx}. {track}")
-        play_music_list(tracks)
-        return
-
-    query = (request.get("query") or raw).strip()
-    if not query:
-        raise ValueError("No song or playlist information found.")
-    print(f"Song: {query}")
-    play_music(query)
+    play_music(text)
 
 
-if __name__ == \\"__main__\\":
+if __name__ == "__main__":
     if len(sys.argv) > 1:
         raw = " ".join(sys.argv[1:])
         handle_request(raw)
     else:
-        print(\\"Usage examples:\\")
-        print('  python3 music.py \\"party_hits_mix, playlist\\"')
-        print('  python3 music.py \\"jab tak hai jaan, song\\"')
-        print('  python3 music.py \\"workout_energy_hindi, playlist\\"')`,
+        print("Usage: python3 music.py <song_name> OR python3 music.py '[\\"song1\\", \\"song2\\"]'")`,
     updatedBridge: `import os
 import json
 import time
 import subprocess
+import re
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+try:
+    from openai import OpenAI
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY")) if os.getenv("OPENAI_API_KEY") else None
+except ImportError:
+    client = None
+
 PORT = 8000
+
+PLAYLIST_PROMPTS = {
+    "party_hits_english": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year English party songs trending social media. No duplicates. Use only 'Song - Artist'.",
+    "party_hits_hindi": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi party songs trending social media. No duplicates. Use only 'Song - Artist'.",
+    "party_hits_mix": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi + English party songs, alternating Hindi and English, trending social media. No duplicates. Use only 'Song - Artist'.",
+    "workout_energy_english": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year English workout songs trending social media. No duplicates. Use only 'Song - Artist'.",
+    "workout_energy_hindi": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi workout songs trending social media. No duplicates. Use only 'Song - Artist'.",
+    "workout_energy_mix": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 current-year Hindi + English workout songs, alternating Hindi and English, trending social media. No duplicates. Use only 'Song - Artist'.",
+    "moods_calm": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 calm current-year Hindi + English songs trending social media. No duplicates. Use only 'Song - Artist'.",
+    "moods_joy": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 joyful current-year Hindi + English songs trending social media. No duplicates. Use only 'Song - Artist'.",
+    "moods_romantic": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 romantic current-year Hindi + English songs trending social media. No duplicates. Use only 'Song - Artist'.",
+    "moods_sad": "Return JSON {\\"songs\\":[\\"Song - Artist\\", ...]} with exactly 20 sad current-year Hindi + English songs trending social media. No duplicates. Use only 'Song - Artist'.",
+}
+
+SPECIAL_ALIASES = {
+    "workout_energy_hits_mix": "workout_energy_mix",
+    "party_hits_hits_mix": "party_hits_mix",
+    "moods": "moods_joy",
+}
+
+def normalize_playlist_name(name: str) -> str:
+    value = (name or "").strip().lower().replace(" ", "_")
+    value = re.sub(r"[^a-z0-9_]+", "_", value)
+    value = re.sub(r"_+", "_", value).strip("_")
+    value = SPECIAL_ALIASES.get(value, value)
+    return value
+
+def parse_request(raw: str):
+    text = (raw or "").strip()
+    lower = text.lower()
+
+    if "," in text:
+        parts = [p.strip() for p in text.split(",") if p.strip()]
+        for part in parts:
+            if "playlist" in part.lower():
+                name = part.lower().replace("playlist", "").strip(" _-")
+                if name: return {"type": "playlist", "playlist": normalize_playlist_name(name)}
+
+    if "playlist" in lower:
+        match = re.search(r"([a-z0-9_]+(?:_[a-z0-9_]+)*)\\s*(?:,\\s*)?playlist", lower)
+        if match: return {"type": "playlist", "playlist": normalize_playlist_name(match.group(1))}
+        return {"type": "playlist", "playlist": "party_hits_mix"}
+
+    return {"type": "song", "query": text.replace(", song", "").strip()}
+
+def generate_playlist_tracks(playlist_name: str):
+    key = normalize_playlist_name(playlist_name)
+    prompt = PLAYLIST_PROMPTS.get(key)
+    if not prompt or not client: return []
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": "Return ONLY valid JSON with a single key named 'songs'. The value must be an array of song strings."},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    data = json.loads(response.choices[0].message.content)
+    return data.get("songs", [])
 
 class JerryBridgeHandler(SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
@@ -556,46 +480,52 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
 
         action = payload.get("action")
 
-        # New Media Actions
         if action == "play_music":
-            query = payload.get("query", "")
-            print(f"[Media] Killing old playback and starting new query: {query}")
+            raw_query = payload.get("query", "")
+            print(f"[Media] Request: {raw_query}")
+
             subprocess.run("pkill -f music.py", shell=True)
             subprocess.run("pkill -f mpv", shell=True)
             subprocess.run("pkill -f streamlink", shell=True)
 
-            # Run music.py and capture initial output (song list)
-            process = subprocess.Popen(["python3", "music.py", query],
-                                     stdout=subprocess.PIPE,
-                                     stderr=subprocess.STDOUT,
-                                     text=True, bufsize=1)
+            request = parse_request(raw_query)
+            final_playback_query = raw_query
+            tracks_for_frontend = []
 
-            output_lines = []
-            while True:
-                line = process.stdout.readline()
-                if not line or "Reading from stdin" in line: break
-                output_lines.append(line.strip())
-                if len(output_lines) > 30: break
+            if request["type"] == "playlist":
+                print(f"[Media] Generating AI Playlist: {request['playlist']}")
+                tracks = generate_playlist_tracks(request["playlist"])
+                if tracks:
+                    final_playback_query = json.dumps(tracks)
+                    tracks_for_frontend = tracks
+                else:
+                    final_playback_query = request["playlist"]
+                    tracks_for_frontend = [request["playlist"]]
+            else:
+                final_playback_query = request["query"]
+                tracks_for_frontend = [final_playback_query]
 
-            self.wfile.write(json.dumps({"status": "success", "output": "\\\\n".join(output_lines)}).encode('utf-8'))
+            # Run playback in background
+            subprocess.Popen(["python3", "music.py", final_playback_query])
+
+            # Return tracks to populate dashboard UI
+            self.wfile.write(json.dumps({
+                "status": "success",
+                "output": json.dumps(tracks_for_frontend)
+            }).encode('utf-8'))
             return
 
         if action == "stop_music":
-            print("[Media] Stopping all playback")
             subprocess.run("pkill -f music.py", shell=True)
             subprocess.run("pkill -f mpv", shell=True)
             subprocess.run("pkill -f streamlink", shell=True)
             self.wfile.write(json.dumps({"status": "success"}).encode('utf-8'))
             return
 
-        # Rest of bridge logic...
+        # Rest of bridge logic (Assisstant Query)...
         query_text = payload.get("query") or payload.get("text")
         if query_text:
-            try:
-                # Integrate with your assistant logic here
-                self.wfile.write(json.dumps({"status": "success", "message": "Command received"}).encode('utf-8'))
-            except Exception as e:
-                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode('utf-8'))
+            self.wfile.write(json.dumps({"status": "success", "message": "Command received"}).encode('utf-8'))
             return
 
         # Device Control Logic...
@@ -612,7 +542,7 @@ class JerryBridgeHandler(SimpleHTTPRequestHandler):
         self.wfile.write(json.dumps({"status": "success", "message": res}).encode('utf-8'))
 
 if __name__ == "__main__":
-    print(f"Jerry Bridge with Media Control active on {PORT}...")
+    print(f"Jerry Bridge with Media Intelligence active on {PORT}...")
     ThreadingHTTPServer(("0.0.0.0", PORT), JerryBridgeHandler).serve_forever()`,
     devicesModule: `DEVICES = {
     "living room": {
@@ -1040,7 +970,7 @@ echo "Turned on kitchen lights" | piper \\
 {`curl -sLO ${typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/termux-client.js`}
                   </pre>
                   <button
-                    onClick={() => copyToClipboard(`curl -sLO ${typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/termux-client.js`, 52)}
+                    onClick={() => copyToClipboard( `curl -sLO ${typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}/termux-client.js`, 52)}
                     className="absolute top-2 right-2 p-1 rounded bg-[#161a22] hover:bg-[#1f2633] text-gray-400 hover:text-white transition-colors border border-[#1e222b]"
                     title="Copy download script"
                   >
@@ -1307,17 +1237,17 @@ yt-dlp --version`}
           </div>
         </div>
 
-        {/* Step 7: Advanced Music Script Setup */}
+        {/* Step 7: Simplified Music Script (music.py) */}
         <div className="bg-[#161a22] border border-[#1e222b] rounded-xl p-5 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <span className="w-6 h-6 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-mono flex items-center justify-center font-bold">7</span>
-              <h3 className="text-sm font-semibold text-white">Advanced Music Script (music.py)</h3>
+              <h3 className="text-sm font-semibold text-white">Simplified Music Script (music.py)</h3>
             </div>
             <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-400 font-semibold">Media Script</span>
           </div>
           <p className="text-xs text-gray-400 leading-relaxed">
-            Create a file named <code className="text-indigo-400 font-mono">music.py</code> on your backend server and paste the following code. This script handles high-quality audio extraction and playback using <code className="text-indigo-300">streamlink</code>.
+            Create a file named <code className="text-indigo-400 font-mono">music.py</code> on your backend server. This simplified version focuses strictly on playback, receiving track information from the bridge.
           </p>
           <div className="relative">
             <pre className="text-[10px] font-mono p-4 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-gray-300 overflow-x-auto whitespace-pre leading-relaxed max-h-64">
@@ -1333,17 +1263,17 @@ yt-dlp --version`}
           </div>
         </div>
 
-        {/* Step 8: Updated Bridge for Media Integration */}
+        {/* Step 8: Intelligent IoT Bridge (bridge.py) */}
         <div className="bg-[#161a22] border border-[#1e222b] rounded-xl p-5 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <span className="w-6 h-6 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-mono flex items-center justify-center font-bold">8</span>
-              <h3 className="text-sm font-semibold text-white">Enhanced IoT Bridge (bridge.py)</h3>
+              <h3 className="text-sm font-semibold text-white">Intelligent IoT Bridge (bridge.py)</h3>
             </div>
             <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 font-semibold">Updated Core</span>
           </div>
           <p className="text-xs text-gray-400 leading-relaxed">
-            Replace your current <code className="text-indigo-400 font-mono">bridge.py</code> with this version. It includes logic to manage <code className="text-indigo-300">music.py</code> processes, ensuring smooth transitions between songs.
+            Replace your <code className="text-indigo-400 font-mono">bridge.py</code> with this version. It now handles AI playlist generation via OpenAI and passes the results to <code className="text-indigo-300">music.py</code> for playback.
           </p>
           <div className="relative">
             <pre className="text-[10px] font-mono p-4 rounded-lg bg-[#0b0c10] border border-[#1e222b] text-gray-300 overflow-x-auto whitespace-pre leading-relaxed max-h-64">
@@ -1372,8 +1302,8 @@ yt-dlp --version`}
 {`# 1. System Players
 sudo apt update && sudo apt install -y mpv yt-dlp
 
-# 2. Python Dependencies (for music extraction)
-pip install streamlink`}
+# 2. Python Dependencies (for music extraction & AI)
+pip install streamlink openai python-dotenv`}
           </pre>
         </div>
       </div>

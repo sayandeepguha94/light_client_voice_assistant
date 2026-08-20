@@ -858,6 +858,7 @@ app.post("/api/proxy", async (req, res) => {
 let currentTrack: any = null;
 let mediaQueue: any[] = [];
 let mediaQueueIndex = -1;
+let isMediaPlaying = false;
 
 async function callOpenAI(prompt: string) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -946,6 +947,8 @@ app.post("/api/media/play", async (req, res) => {
       query: query
     });
 
+    isMediaPlaying = result.success;
+
     return res.json({
       success: result.success,
       track: currentTrack,
@@ -964,6 +967,7 @@ app.post("/api/media/control", async (req, res) => {
   if (action === "stop") {
     await callBridge(bridgeUrl, { action: "stop_music" });
     currentTrack = null;
+    isMediaPlaying = false;
     return res.json({ success: true });
   }
 
@@ -981,6 +985,7 @@ app.post("/api/media/control", async (req, res) => {
 app.get("/api/media/status", (req, res) => {
   res.json({
     currentTrack,
+    isPlaying: isMediaPlaying,
     queueLength: mediaQueue.length,
     queueIndex: mediaQueueIndex
   });

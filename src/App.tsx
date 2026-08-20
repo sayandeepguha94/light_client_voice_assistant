@@ -1127,6 +1127,7 @@ export default function App() {
   const [mediaExpandedGroups, setMediaExpandedGroups] = useState<string[]>([]);
   const [currentMediaContext, setCurrentMediaContext] = useState<string | null>(null);
   const [isMediaLoading, setIsMediaLoading] = useState(false);
+  const [lastTrackList, setLastTrackList] = useState<string | null>(null);
 
   // User stopped speech recognition ref (prevents auto-restart when user manually clicks orb to stop)
   const userStoppedRef = useRef<boolean>(false);
@@ -1158,6 +1159,9 @@ export default function App() {
             const status = await res.json();
             setCurrentMediaTrack(status.currentTrack);
             setIsMediaPlaying(status.isPlaying);
+            if (!status.isPlaying) {
+              setCurrentMediaContext(null);
+            }
           }
         } catch (err) {}
       };
@@ -1227,6 +1231,7 @@ export default function App() {
 
         // Add song list output to logs if available
         if (data.output) {
+          setLastTrackList(data.output);
           addLog("success", categoryId ? `Playlist Loaded: ${categoryId}` : `Song Loaded: ${track.title}`, data.output);
         }
       }
@@ -3993,7 +3998,7 @@ export default function App() {
         )}
 
         {activeTab === "media" && (
-          <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in pb-10">
+          <div className="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
 
             {/* TOP ROW: Header with Search Bar (Full Width) */}
             <div className="lg:col-span-12">
@@ -4052,9 +4057,9 @@ export default function App() {
             </div>
 
             {/* MIDDLE ROW: Player (6) and Playlists (6) */}
-            <div className="lg:col-span-6 space-y-6">
+            <div className="lg:col-span-6">
               {/* Player Area */}
-              <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[280px] text-center relative overflow-hidden group">
+              <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[300px] text-center relative overflow-hidden group">
                 {/* Loading Overlay */}
                 {isMediaLoading && (
                   <div className="absolute inset-0 z-30 bg-[#0b0c10]/80 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
@@ -4093,59 +4098,54 @@ export default function App() {
                     </div>
 
                     {/* Track Info */}
-                    <div className="space-y-2">
-                      <h2 className="text-xl font-bold text-white tracking-tight leading-tight">{currentMediaTrack.title}</h2>
-                      <p className="text-rose-400 text-sm font-medium">{currentMediaTrack.artist}</p>
-                      <div className="pt-1">
-                        <span className="px-3 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-mono text-slate-500 uppercase tracking-widest">
-                          Active_Session // Jerry_IoT
-                        </span>
-                      </div>
+                    <div className="space-y-1.5">
+                      <h2 className="text-lg font-bold text-white tracking-tight leading-tight line-clamp-1">{currentMediaTrack.title}</h2>
+                      <p className="text-rose-400 text-xs font-medium">{currentMediaTrack.artist}</p>
                     </div>
 
                     {/* Controls */}
-                    <div className="flex items-center justify-center gap-6">
+                    <div className="flex items-center justify-center gap-4">
                       <button
                         onClick={() => handleMediaControl("prev")}
-                        className="p-2.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
+                        className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
                       >
                         <SkipBack className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleMediaControl("stop")}
-                        className="p-4 bg-rose-500 hover:bg-rose-400 text-white rounded-full transition-all active:scale-95 shadow-xl shadow-rose-500/20"
+                        className="p-3.5 bg-rose-500 hover:bg-rose-400 text-white rounded-full transition-all active:scale-95 shadow-xl shadow-rose-500/20"
                       >
-                        <Square className="w-5 h-5 fill-current" />
+                        <Square className="w-4 h-4 fill-current" />
                       </button>
                       <button
                         onClick={() => handleMediaControl("next")}
-                        className="p-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
+                        className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
                       >
                         <SkipForward className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="relative z-10 text-center space-y-6 animate-pulse">
-                    <div className="w-28 h-28 mx-auto bg-white/5 border border-dashed border-white/10 rounded-full flex items-center justify-center">
-                      <Radio className="w-10 h-10 text-slate-700" />
+                  <div className="relative z-10 text-center space-y-4 animate-pulse">
+                    <div className="w-20 h-20 mx-auto bg-white/5 border border-dashed border-white/10 rounded-full flex items-center justify-center">
+                      <Radio className="w-8 h-8 text-slate-700" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-slate-400 uppercase tracking-widest">Select Trendy Music</h3>
-                      <p className="text-[10px] text-slate-600 mt-2">Pick a category or search above</p>
+                      <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Select Trendy Music</h3>
+                      <p className="text-[10px] text-slate-600 mt-1">Pick a category or search above</p>
                     </div>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="lg:col-span-6 space-y-4">
-              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl h-full flex flex-col min-h-[280px]">
+            <div className="lg:col-span-6">
+              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl h-full flex flex-col min-h-[300px]">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-white/5 pb-3">
                   <LayoutGrid className="w-4 h-4 text-rose-400" />
                   Trendy Playlists & Moods
                 </h3>
-                <div className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[160px]">
+                <div className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[180px]">
                   {MEDIA_CATEGORIES.map(group => {
                     const isExpanded = mediaExpandedGroups.includes(group.id);
 
@@ -4165,7 +4165,7 @@ export default function App() {
                               <button
                                 key={cat.id}
                                 onClick={() => handlePlayMedia(null, cat.id)}
-                                className={`w-full text-left px-3 py-2.5 rounded-xl text-[11px] font-semibold transition-all flex items-center gap-2.5 border ${
+                                className={`w-full text-left px-3 py-2 rounded-xl text-[10px] font-semibold transition-all flex items-center gap-2 border ${
                                   activeMediaCategory === cat.id
                                     ? "bg-rose-500/20 border-rose-500/40 text-white shadow-lg shadow-rose-500/10"
                                     : "bg-white/5 border-transparent text-slate-400 hover:bg-white/10 hover:text-white"
@@ -4185,66 +4185,16 @@ export default function App() {
                 </div>
 
                 {/* Server Playback Status Card */}
-                <div className="mt-auto pt-6 border-t border-white/5 bg-amber-500/5 border-none p-4 rounded-2xl flex items-start gap-3">
+                <div className="mt-auto pt-4 border-t border-white/5 flex items-start gap-3">
                   <div className="p-2 bg-amber-500/10 rounded-lg">
                     <Radio className="w-4 h-4 text-amber-400 animate-pulse" />
                   </div>
                   <div>
                     <h4 className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Backend Bridge Active</h4>
-                    <p className="text-[10px] text-slate-500 mt-1 leading-tight">
-                      Streaming hits to IoT server speakers via music.py
+                    <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                      Streaming hits to IoT speakers via music.py
                     </p>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* BOTTOM ROW: Console Output (Full Width) */}
-            <div className="lg:col-span-12">
-              <div className="bg-[#0b0c10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                <div className="bg-[#1a1b26] px-4 py-2 border-b border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-1.5 mr-2">
-                      <div className="w-2.5 h-2.5 rounded-full bg-rose-500/50"></div>
-                      <div className="w-2.5 h-2.5 rounded-full bg-amber-500/50"></div>
-                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/50"></div>
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">Backend_IoT_Console // media_stream_output</span>
-                  </div>
-                  <button
-                    onClick={() => setLogs([])}
-                    className="text-[9px] text-slate-600 hover:text-rose-400 font-mono transition-colors"
-                  >
-                    Clear_Cache
-                  </button>
-                </div>
-                <div
-                  ref={mediaConsoleRef}
-                  className="h-48 overflow-y-auto p-3 font-mono text-[10px] space-y-1 scrollbar-thin scrollbar-thumb-white/10"
-                >
-                  {logs.length === 0 ? (
-                    <div className="text-slate-700 italic">Waiting for backend telemetry...</div>
-                  ) : (
-                    logs.map((log) => (
-                      <div key={log.id} className="flex gap-3 leading-relaxed group">
-                        <span className="text-slate-600 flex-shrink-0">[{log.timestamp}]</span>
-                        <span className={`flex-shrink-0 uppercase font-bold ${
-                          log.type === "error" ? "text-rose-500" :
-                          log.type === "success" ? "text-emerald-500" :
-                          log.type === "warning" ? "text-amber-500" :
-                          log.type === "voice" ? "text-purple-500" : "text-cyan-500"
-                        }`}>
-                          {log.type}
-                        </span>
-                        <span className="text-slate-300 break-words">{log.message}</span>
-                        {log.details && (
-                          <span className="text-slate-600 italic opacity-0 group-hover:opacity-100 transition-opacity">
-                            {log.details}
-                          </span>
-                        )}
-                      </div>
-                    ))
-                  )}
                 </div>
               </div>
             </div>
@@ -4408,8 +4358,64 @@ export default function App() {
 
       {/* Right Column (4 Cols): Weather & AQI Environmental Panel (Only shown when accessed via localhost:3000) */}
       {isLocalhost && (
-        <div className="lg:col-span-4 flex flex-col w-full">
-          <WeatherPanel onAddLog={addLog} />
+        <div className="lg:col-span-4 flex flex-col w-full gap-6">
+          {activeTab === "media" ? (
+            <>
+              {/* Media Specific Consoles on the Right */}
+              <div className="bg-[#0b0c10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[280px]">
+                <div className="bg-[#1a1b26] px-4 py-2 border-b border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Music className="w-3.5 h-3.5 text-rose-400" />
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">Current_Playlist_Tracks</span>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed text-slate-300 scrollbar-thin scrollbar-thumb-white/10">
+                  {lastTrackList ? (
+                    <div className="whitespace-pre-wrap">{lastTrackList}</div>
+                  ) : (
+                    <div className="text-slate-700 italic">No tracks loaded...</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-[#0b0c10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[280px]">
+                <div className="bg-[#1a1b26] px-4 py-2 border-b border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Terminal className="w-3.5 h-3.5 text-cyan-400" />
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">Backend_IoT_Console</span>
+                  </div>
+                  <button
+                    onClick={() => setLogs([])}
+                    className="text-[9px] text-slate-600 hover:text-rose-400 font-mono transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div
+                  ref={mediaConsoleRef}
+                  className="flex-1 overflow-y-auto p-3 font-mono text-[10px] space-y-1 scrollbar-thin scrollbar-thumb-white/10"
+                >
+                  {logs.length === 0 ? (
+                    <div className="text-slate-700 italic">Waiting for telemetry...</div>
+                  ) : (
+                    logs.map((log) => (
+                      <div key={log.id} className="flex gap-2 leading-relaxed">
+                        <span className={`flex-shrink-0 uppercase font-bold ${
+                          log.type === "error" ? "text-rose-500" :
+                          log.type === "success" ? "text-emerald-500" : "text-cyan-500"
+                        }`}>
+                          {log.type[0]}
+                        </span>
+                        <span className="text-slate-400 break-words">{log.message}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <WeatherPanel onAddLog={addLog} />
+          )}
         </div>
       )}
 

@@ -1081,6 +1081,37 @@ export default function App() {
     setActiveConfigSubTab("gateway");
   };
 
+  const [isHubAuthenticated, setIsHubAuthenticated] = useState(false);
+  const [hubAuthPassword, setHubAuthPassword] = useState("");
+  const [hubAuthError, setHubAuthError] = useState(false);
+  const [isVerifyingHub, setIsVerifyingHub] = useState(false);
+  const [showHubAuth, setShowHubAuth] = useState(false);
+
+  const handleHubAuth = async (e: FormEvent) => {
+    e.preventDefault();
+    setIsVerifyingHub(true);
+    setHubAuthError(false);
+    try {
+      const res = await fetch("/api/auth/verify-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: hubAuthPassword }),
+      });
+      if (res.ok) {
+        setIsHubAuthenticated(true);
+        setHubAuthPassword("");
+        setShowHubAuth(false);
+        setActiveTab("devices");
+      } else {
+        setHubAuthError(true);
+      }
+    } catch (err) {
+      setHubAuthError(true);
+    } finally {
+      setIsVerifyingHub(false);
+    }
+  };
+
   // Core App States
   const [devices, setDevices] = useState<Device[]>(INITIAL_DEVICES);
 
@@ -4230,13 +4261,48 @@ export default function App() {
         {activeTab === "status" && (
           <div className="w-full max-w-4xl mx-auto flex flex-col items-center justify-center gap-4 py-2 animate-fade-in min-h-[90vh] overflow-hidden">
             {/* Top Return Button */}
-            <button
-              onClick={() => setActiveTab("devices")}
-              className="group flex items-center gap-2.5 px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-105 active:scale-95"
-            >
-              <LayoutGrid className="w-4 h-4 text-cyan-400 group-hover:rotate-90 transition-transform duration-500" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Open Dashboard Hub</span>
-            </button>
+            {!isHubAuthenticated && !showHubAuth ? (
+              <button
+                onClick={() => setShowHubAuth(true)}
+                className="group flex items-center gap-2.5 px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-105 active:scale-95"
+              >
+                <Lock className="w-4 h-4 text-amber-500 group-hover:rotate-12 transition-transform" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Unlock Dashboard Hub</span>
+              </button>
+            ) : showHubAuth ? (
+              <form onSubmit={handleHubAuth} className="flex items-center gap-2 animate-fade-in bg-black/20 p-1 rounded-xl border border-white/5">
+                <input
+                  type="password"
+                  value={hubAuthPassword}
+                  onChange={(e) => setHubAuthPassword(e.target.value)}
+                  placeholder="Access Key"
+                  autoFocus
+                  className={`bg-black/40 border ${hubAuthError ? "border-rose-500" : "border-white/10"} rounded-lg px-3 py-1.5 text-[10px] text-white focus:outline-none focus:border-cyan-500 transition-all w-32`}
+                />
+                <button
+                  type="submit"
+                  disabled={isVerifyingHub}
+                  className="p-1.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-500/30 transition-all"
+                >
+                  {isVerifyingHub ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowHubAuth(false); setHubAuthError(false); setHubAuthPassword(""); }}
+                  className="p-1.5 text-slate-500 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </form>
+            ) : (
+              <button
+                onClick={() => setActiveTab("devices")}
+                className="group flex items-center gap-2.5 px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-105 active:scale-95"
+              >
+                <LayoutGrid className="w-4 h-4 text-cyan-400 group-hover:rotate-90 transition-transform duration-500" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Open Dashboard Hub</span>
+              </button>
+            )}
 
             {/* Giant Clock Section */}
             <div className="flex flex-col items-center text-center">

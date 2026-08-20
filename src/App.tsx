@@ -4056,10 +4056,10 @@ export default function App() {
               </div>
             </div>
 
-            {/* MIDDLE ROW: Player (6) and Playlists (6) */}
-            <div className="lg:col-span-6">
+            {/* MIDDLE ROW: Player (4) and Playlists (4) */}
+            <div className="lg:col-span-4">
               {/* Player Area */}
-              <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[460px] text-center relative overflow-hidden group">
+              <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[520px] text-center relative overflow-hidden group">
                 {/* Loading Overlay */}
                 {isMediaLoading && (
                   <div className="absolute inset-0 z-30 bg-[#0b0c10]/80 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
@@ -4070,7 +4070,7 @@ export default function App() {
 
                 {/* Now Playing Category Label */}
                 {currentMediaContext && (
-                  <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 w-full px-4 animate-fade-in">
+                  <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 w-full px-4 animate-fade-in">
                     <p className="text-[10px] font-black text-rose-500/60 uppercase tracking-[0.2em] mb-1">Now Playing</p>
                     <p className="text-sm font-bold text-white tracking-wide truncate max-w-[80%] mx-auto">{currentMediaContext}</p>
                     <div className="w-12 h-0.5 bg-rose-500/30 mx-auto mt-2 rounded-full"></div>
@@ -4144,13 +4144,13 @@ export default function App() {
               </div>
             </div>
 
-            <div className="lg:col-span-6">
-              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl h-full flex flex-col min-h-[460px]">
+            <div className="lg:col-span-4">
+              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl h-full flex flex-col min-h-[520px]">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-white/5 pb-3">
                   <LayoutGrid className="w-4 h-4 text-rose-400" />
                   Trendy Playlists & Moods
                 </h3>
-                <div className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[340px]">
+                <div className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[400px]">
                   {MEDIA_CATEGORIES.map(group => {
                     const isExpanded = mediaExpandedGroups.includes(group.id);
 
@@ -4365,9 +4365,9 @@ export default function App() {
       {isLocalhost && (
         <div className="lg:col-span-4 flex flex-col w-full gap-6">
           {activeTab === "media" ? (
-            <>
+            <div className="flex flex-col gap-4 h-full min-h-[520px]">
               {/* Media Specific Consoles on the Right */}
-              <div className="bg-[#0b0c10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[280px]">
+              <div className="bg-[#0b0c10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[320px]">
                 <div className="bg-[#1a1b26] px-4 py-2 border-b border-white/5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Music className="w-3.5 h-3.5 text-rose-400" />
@@ -4377,13 +4377,15 @@ export default function App() {
                 <div className="flex-1 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed text-slate-300 scrollbar-thin scrollbar-thumb-white/10">
                   {lastTrackList ? (
                     <div className="whitespace-pre-wrap">{lastTrackList}</div>
+                  ) : isMediaLoading ? (
+                    <div className="text-rose-500 animate-pulse font-bold">Loading playlist tracks...</div>
                   ) : (
                     <div className="text-slate-700 italic">No tracks loaded...</div>
                   )}
                 </div>
               </div>
 
-              <div className="bg-[#0b0c10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[280px]">
+              <div className="bg-[#0b0c10] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[184px]">
                 <div className="bg-[#1a1b26] px-4 py-2 border-b border-white/5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Terminal className="w-3.5 h-3.5 text-cyan-400" />

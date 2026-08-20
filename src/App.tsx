@@ -4378,29 +4378,51 @@ export default function App() {
                   {lastTrackList ? (
                     <div className="whitespace-pre-wrap">
                       {(() => {
-                        try {
-                          // Try to parse the output if it's a JSON list from music.py
+                        let tracks: string[] = [];
+
+                        if (Array.isArray(lastTrackList)) {
+                          tracks = lastTrackList;
+                        } else if (typeof lastTrackList === 'string') {
                           const cleaned = lastTrackList.trim();
-                          if (cleaned.startsWith('[') && cleaned.endsWith(']')) {
-                            const tracks = JSON.parse(cleaned);
-                            if (Array.isArray(tracks)) {
-                              return (
-                                <div className="space-y-1.5">
-                                  <div className="text-[10px] text-rose-500/40 mb-2 font-bold uppercase tracking-widest border-b border-rose-500/10 pb-1">
-                                    Queue Status: {tracks.length} Tracks Ready
-                                  </div>
-                                  {tracks.map((t, idx) => (
-                                    <div key={idx} className="flex gap-2 group/track">
-                                      <span className="text-rose-500/50 flex-shrink-0">{String(idx + 1).padStart(2, '0')}.</span>
-                                      <span className="group-hover/track:text-white transition-colors">{t}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              );
+
+                          // Try standard JSON parse
+                          try {
+                            const parsed = JSON.parse(cleaned);
+                            if (Array.isArray(parsed)) tracks = parsed;
+                          } catch (e) {
+                            // Fallback: Try cleaning Python-style list string
+                            try {
+                              const jsonFriendly = cleaned
+                                .replace(/'/g, '"')
+                                .replace(/,\s*\]$/, ']')
+                                .replace(/\\n/g, '');
+
+                              const parsed = JSON.parse(jsonFriendly);
+                              if (Array.isArray(parsed)) tracks = parsed;
+                            } catch (e2) {
+                              // Final Fallback: Split by newline/comma
+                              tracks = cleaned
+                                .split(/[\n,]+/)
+                                .map(t => t.replace(/[\[\]"']/g, '').trim())
+                                .filter(t => t.length > 0 && !t.includes(':') && t !== 'playlist');
                             }
                           }
-                        } catch (e) {
-                          // Fallback to raw text if parsing fails
+                        }
+
+                        if (tracks.length > 0) {
+                          return (
+                            <div className="space-y-1.5">
+                              <div className="text-[10px] text-rose-500/40 mb-2 font-bold uppercase tracking-widest border-b border-rose-500/10 pb-1">
+                                Queue Status: {tracks.length} Tracks Ready
+                              </div>
+                              {tracks.map((t, idx) => (
+                                <div key={idx} className="flex gap-2 group/track">
+                                  <span className="text-rose-500/50 flex-shrink-0">{String(idx + 1).padStart(2, '0')}.</span>
+                                  <span className="group-hover/track:text-white transition-colors">{t}</span>
+                                </div>
+                              ))}
+                            </div>
+                          );
                         }
                         return lastTrackList;
                       })()}

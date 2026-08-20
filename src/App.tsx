@@ -4260,7 +4260,7 @@ export default function App() {
         )}
 
         {activeTab === "status" && (
-          <div className="w-full max-w-4xl mx-auto flex flex-col items-center justify-center gap-4 py-2 animate-fade-in min-h-[90vh] overflow-hidden">
+          <div className="w-full max-w-4xl mx-auto flex flex-col items-center justify-center gap-4 py-2 animate-fade-in min-h-[90vh] overflow-hidden text-center">
             {/* Top Return Button */}
             {!isHubAuthenticated && !showHubAuth ? (
               <button
@@ -4306,11 +4306,6 @@ export default function App() {
                 <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300 pointer-events-none">Open Dashboard Hub</span>
               </button>
             )}
-              >
-                <LayoutGrid className="w-4 h-4 text-cyan-400 group-hover:rotate-90 transition-transform duration-500" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Open Dashboard Hub</span>
-              </button>
-            )}
 
             {/* Giant Clock Section */}
             <div className="flex flex-col items-center text-center">
@@ -4327,7 +4322,7 @@ export default function App() {
 
             {/* Environment Summary */}
             <div className="grid grid-cols-2 gap-4 w-full max-w-lg mt-2">
-              <div className="bg-[#11131f]/40 backdrop-blur-md border border-white/5 p-4 rounded-2xl flex items-center gap-3 shadow-xl">
+              <div className="bg-[#11131f]/40 backdrop-blur-md border border-white/5 p-4 rounded-2xl flex items-center gap-3 shadow-xl text-left">
                 <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400">
                   <Thermometer className="w-5 h-5" />
                 </div>
@@ -4337,7 +4332,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-[#11131f]/40 backdrop-blur-md border border-white/5 p-4 rounded-2xl flex items-center gap-3 shadow-xl">
+              <div className="bg-[#11131f]/40 backdrop-blur-md border border-white/5 p-4 rounded-2xl flex items-center gap-3 shadow-xl text-left">
                 <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400">
                   <Wind className="w-5 h-5" />
                 </div>
@@ -4361,7 +4356,7 @@ export default function App() {
                          <span className="text-[8px] font-black text-slate-500 uppercase tracking-tighter">{dev.room}</span>
                          <span className="text-[10px] font-bold text-slate-200 whitespace-nowrap">{dev.name}</span>
                        </div>
-                       <span className="text-[8px] font-mono uppercase text-cyan-400/80 bg-cyan-400/10 px-1.5 rounded-full">
+                       <span className="text-[8px] font-mono uppercase text-cyan-400/80 bg-cyan-400/10 px-1.5 rounded-full leading-none">
                          {dev.statusText}
                        </span>
                     </div>

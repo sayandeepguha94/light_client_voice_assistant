@@ -4398,20 +4398,27 @@ export default function App() {
                 </div>
                 <div
                   ref={mediaConsoleRef}
-                  className="flex-1 overflow-y-auto p-3 font-mono text-[10px] space-y-1 scrollbar-thin scrollbar-thumb-white/10"
+                  className="flex-1 overflow-y-auto p-3 font-mono text-[10px] space-y-2 scrollbar-thin scrollbar-thumb-white/10"
                 >
                   {logs.length === 0 ? (
                     <div className="text-slate-700 italic">Waiting for telemetry...</div>
                   ) : (
                     logs.map((log) => (
-                      <div key={log.id} className="flex gap-2 leading-relaxed">
-                        <span className={`flex-shrink-0 uppercase font-bold ${
-                          log.type === "error" ? "text-rose-500" :
-                          log.type === "success" ? "text-emerald-500" : "text-cyan-500"
-                        }`}>
-                          {log.type[0]}
-                        </span>
-                        <span className="text-slate-400 break-words">{log.message}</span>
+                      <div key={log.id} className="flex flex-col gap-1 leading-relaxed border-b border-white/5 pb-2 last:border-0 last:pb-0">
+                        <div className="flex gap-2">
+                          <span className={`flex-shrink-0 uppercase font-bold ${
+                            log.type === "error" ? "text-rose-500" :
+                            log.type === "success" ? "text-emerald-500" : "text-cyan-500"
+                          }`}>
+                            {log.type[0]}
+                          </span>
+                          <span className="text-slate-400 break-words font-bold">{log.message}</span>
+                        </div>
+                        {log.details && (
+                          <div className="text-slate-500 pl-5 whitespace-pre-wrap opacity-80 leading-tight">
+                            {log.details}
+                          </div>
+                        )}
                       </div>
                     ))
                   )}

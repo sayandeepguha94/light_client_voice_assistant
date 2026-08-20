@@ -4059,11 +4059,11 @@ export default function App() {
             {/* MIDDLE ROW: Player (6) and Playlists (6) */}
             <div className="lg:col-span-6">
               {/* Player Area */}
-              <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[300px] text-center relative overflow-hidden group">
+              <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[460px] text-center relative overflow-hidden group">
                 {/* Loading Overlay */}
                 {isMediaLoading && (
                   <div className="absolute inset-0 z-30 bg-[#0b0c10]/80 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
-                    <RefreshCw className="w-6 h-6 text-rose-500 animate-spin mb-3" />
+                    <RefreshCw className="w-8 h-8 text-rose-500 animate-spin mb-3" />
                     <p className="text-[10px] font-bold text-white uppercase tracking-widest animate-pulse">Loading...</p>
                   </div>
                 )}
@@ -4081,14 +4081,14 @@ export default function App() {
                 <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
 
                 {currentMediaTrack ? (
-                  <div className="relative z-10 animate-fade-in space-y-6 w-full max-w-md">
+                  <div className="relative z-10 animate-fade-in space-y-8 w-full max-w-md">
                     {/* Stylized Jerry Icon */}
-                    <div className="relative mx-auto w-24 h-24">
-                      <div className={`absolute inset-0 bg-rose-500/20 rounded-full blur-2xl transition-all duration-1000 ${isMediaPlaying ? 'scale-100 opacity-100' : 'scale-75 opacity-50'}`}></div>
+                    <div className="relative mx-auto w-32 h-32">
+                      <div className={`absolute inset-0 bg-rose-500/20 rounded-full blur-2xl transition-all duration-1000 ${isMediaPlaying ? 'scale-110 opacity-100' : 'scale-90 opacity-50'}`}></div>
                       <div className={`relative w-full h-full rounded-full border-2 border-rose-500/30 bg-black flex items-center justify-center shadow-2xl transition-transform duration-700 ${isMediaPlaying ? 'scale-100' : 'scale-95'}`}>
-                        <Radio className={`w-10 h-10 text-rose-600 transition-all ${isMediaPlaying ? 'animate-pulse' : 'opacity-40'}`} />
+                        <Radio className={`w-12 h-12 text-rose-600 transition-all ${isMediaPlaying ? 'animate-pulse' : 'opacity-40'}`} />
                         {isMediaPlaying && (
-                          <div className="absolute -bottom-1 right-1 p-1 bg-rose-500 rounded-full shadow-lg">
+                          <div className="absolute -bottom-1 right-2 p-1.5 bg-rose-500 rounded-full shadow-lg">
                             <div className="flex gap-0.5">
                               {[1,2,3].map(i => <div key={i} className="w-0.5 bg-white rounded-full animate-music-bar" style={{animationDelay: `${i*0.2}s`}}></div>)}
                             </div>
@@ -4098,41 +4098,46 @@ export default function App() {
                     </div>
 
                     {/* Track Info */}
-                    <div className="space-y-1.5">
-                      <h2 className="text-lg font-bold text-white tracking-tight leading-tight line-clamp-1">{currentMediaTrack.title}</h2>
-                      <p className="text-rose-400 text-xs font-medium">{currentMediaTrack.artist}</p>
+                    <div className="space-y-2">
+                      <h2 className="text-xl font-bold text-white tracking-tight leading-tight line-clamp-2">{currentMediaTrack.title}</h2>
+                      <p className="text-rose-400 text-sm font-medium">{currentMediaTrack.artist}</p>
+                      <div className="pt-1">
+                        <span className="px-3 py-0.5 rounded-full bg-white/5 border border-white/10 text-[9px] font-mono text-slate-500 uppercase tracking-widest">
+                          Active_Session // Jerry_IoT
+                        </span>
+                      </div>
                     </div>
 
                     {/* Controls */}
-                    <div className="flex items-center justify-center gap-4">
+                    <div className="flex items-center justify-center gap-6">
                       <button
                         onClick={() => handleMediaControl("prev")}
-                        className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
+                        className="p-2.5 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
                       >
                         <SkipBack className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => handleMediaControl("stop")}
-                        className="p-3.5 bg-rose-500 hover:bg-rose-400 text-white rounded-full transition-all active:scale-95 shadow-xl shadow-rose-500/20"
+                        className="p-4 bg-rose-500 hover:bg-rose-400 text-white rounded-full transition-all active:scale-95 shadow-xl shadow-rose-500/20"
                       >
-                        <Square className="w-4 h-4 fill-current" />
+                        <Square className="w-5 h-5 fill-current" />
                       </button>
                       <button
                         onClick={() => handleMediaControl("next")}
-                        className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
+                        className="p-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-all active:scale-90"
                       >
                         <SkipForward className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="relative z-10 text-center space-y-4 animate-pulse">
-                    <div className="w-20 h-20 mx-auto bg-white/5 border border-dashed border-white/10 rounded-full flex items-center justify-center">
-                      <Radio className="w-8 h-8 text-slate-700" />
+                  <div className="relative z-10 text-center space-y-6 animate-pulse">
+                    <div className="w-28 h-28 mx-auto bg-white/5 border border-dashed border-white/10 rounded-full flex items-center justify-center">
+                      <Radio className="w-10 h-10 text-slate-700" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Select Trendy Music</h3>
-                      <p className="text-[10px] text-slate-600 mt-1">Pick a category or search above</p>
+                      <h3 className="text-lg font-bold text-slate-400 uppercase tracking-widest">Select Trendy Music</h3>
+                      <p className="text-[10px] text-slate-600 mt-2">Pick a category or search above</p>
                     </div>
                   </div>
                 )}
@@ -4140,12 +4145,12 @@ export default function App() {
             </div>
 
             <div className="lg:col-span-6">
-              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl h-full flex flex-col min-h-[300px]">
+              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl h-full flex flex-col min-h-[460px]">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-white/5 pb-3">
                   <LayoutGrid className="w-4 h-4 text-rose-400" />
                   Trendy Playlists & Moods
                 </h3>
-                <div className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[180px]">
+                <div className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[340px]">
                   {MEDIA_CATEGORIES.map(group => {
                     const isExpanded = mediaExpandedGroups.includes(group.id);
 

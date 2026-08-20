@@ -991,8 +991,8 @@ export default function App() {
     return false;
   });
 
-  // Navigation: "devices" | "shopping" | "chat" | "configurations" | "media"
-  const [activeTab, setActiveTab] = useState<"devices" | "shopping" | "chat" | "configurations" | "media">(
+  // Navigation: "devices" | "shopping" | "chat" | "configurations" | "media" | "status"
+  const [activeTab, setActiveTab] = useState<"devices" | "shopping" | "chat" | "configurations" | "media" | "status">(
     () => {
       if (typeof window !== "undefined") {
         const route = parseRouteFromPath(window.location.pathname);
@@ -3096,7 +3096,8 @@ export default function App() {
     <div id="app-container" className="min-h-screen bg-[#05060a] text-slate-200 font-sans p-4 md:p-6 flex flex-col justify-between overflow-x-hidden">
       
       {/* Header Panel */}
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-[0_0_20px_rgba(0,0,0,0.5)] mb-6 gap-4 w-full max-w-7xl mx-auto">
+      {activeTab !== "status" && (
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-[0_0_20px_rgba(0,0,0,0.5)] mb-6 gap-4 w-full max-w-7xl mx-auto">
         <div className="flex items-center gap-4">
           <div className={`w-3 h-3 rounded-full transition-all duration-500 ${listening ? "bg-purple-500 shadow-[0_0_12px_#a855f7]" : "bg-cyan-400 shadow-[0_0_10px_#22d3ee]"}`}></div>
           <div>
@@ -3128,7 +3129,23 @@ export default function App() {
             </p>
             <span className="text-[9px] font-bold text-cyan-400 font-sans tracking-wider mt-0.5 uppercase">Kolkata IST</span>
           </div>
-          <div className="border-l border-white/10 pl-4 md:pl-6 flex items-center">
+          <div className="border-l border-white/10 pl-4 md:pl-6 flex items-center gap-2">
+            <button
+              onClick={() => {
+                setRouteInfo({ mode: "full" });
+                setActiveTab("status");
+                if (typeof window !== "undefined") window.history.pushState({}, "", "/");
+              }}
+              className={`p-2.5 rounded-xl transition-all duration-300 cursor-pointer flex items-center gap-2 ${
+                activeTab === "status"
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
+                  : "bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 border border-transparent"
+              }`}
+              title="View System Status"
+            >
+              <Clock className="w-4 h-4" />
+              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">To Status</span>
+            </button>
             <button
               onClick={() => {
                 setRouteInfo({ mode: "full" });
@@ -3148,16 +3165,17 @@ export default function App() {
           </div>
         </div>
       </header>
+      )}
 
       {/* Primary Navigation & Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto mb-6 px-1">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
           {/* Left Column (8 or 12 Cols depending on localhost): Navigation Bar + Active Tab View */}
-          <div className={`${isLocalhost ? "lg:col-span-8" : "lg:col-span-12"} flex flex-col gap-6 w-full`}>
+          <div className={`${(isLocalhost && activeTab !== "status") ? "lg:col-span-8" : "lg:col-span-12"} flex flex-col gap-6 w-full`}>
             
             {/* Navigation Tab Bar (Only shown on full application root access /) */}
-            {routeInfo.mode === "full" && (
+            {routeInfo.mode === "full" && activeTab !== "status" && (
               <nav className="bg-[#11131f]/70 backdrop-blur-md border border-white/10 p-1 rounded-xl w-full">
                 <div className="flex flex-wrap sm:flex-nowrap w-full gap-1">
                   <button
@@ -4207,6 +4225,76 @@ export default function App() {
           </div>
         )}
 
+        {activeTab === "status" && (
+          <div className="w-full max-w-4xl mx-auto flex flex-col items-center gap-12 py-12 animate-fade-in">
+            {/* Top Return Button */}
+            <button
+              onClick={() => setActiveTab("devices")}
+              className="group flex items-center gap-3 px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl transition-all hover:scale-105 active:scale-95"
+            >
+              <LayoutGrid className="w-5 h-5 text-cyan-400 group-hover:rotate-90 transition-transform duration-500" />
+              <span className="text-sm font-bold uppercase tracking-widest text-slate-300">Open Dashboard Hub</span>
+            </button>
+
+            {/* Giant Clock Section */}
+            <div className="flex flex-col items-center text-center">
+              <div className="relative">
+                <div className="absolute inset-0 bg-cyan-500/20 blur-[100px] rounded-full scale-150"></div>
+                <h1 className="text-[120px] md:text-[180px] font-black font-mono leading-none tracking-tighter text-white drop-shadow-[0_0_30px_rgba(34,211,238,0.3)] relative z-10">
+                  {currentTime.split(' ')[0]}
+                </h1>
+              </div>
+              <p className="text-xl md:text-2xl font-medium text-slate-400 tracking-[0.3em] uppercase mt-4">
+                {new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </p>
+            </div>
+
+            {/* Environment Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
+              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-6 rounded-3xl flex items-center justify-between shadow-2xl">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-amber-400">
+                    <Thermometer className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Temperature</p>
+                    <p className="text-3xl font-black text-white font-mono">31°C</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-6 rounded-3xl flex items-center justify-between shadow-2xl">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-emerald-400">
+                    <Wind className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Air Quality</p>
+                    <p className="text-3xl font-black text-white font-mono">68</p>
+                    <span className="text-[9px] font-bold text-emerald-500 uppercase">Moderate</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Device Status Grid */}
+            <div className="w-full bg-[#11131f]/40 border border-white/5 p-8 rounded-[40px] shadow-inner">
+               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-8 text-center">IoT Ecosystem Live Feed</h3>
+               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {devices.map(dev => (
+                    <div key={dev.id} className="flex flex-col items-center p-4 bg-white/5 border border-white/5 rounded-2xl gap-2">
+                       <div className={`w-2 h-2 rounded-full ${dev.on ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-slate-700'}`}></div>
+                       <span className="text-[11px] font-bold text-slate-300 truncate w-full text-center">{dev.name}</span>
+                       <span className={`text-[9px] font-mono uppercase ${dev.on ? 'text-cyan-400' : 'text-slate-500'}`}>
+                         {dev.statusText}
+                       </span>
+                    </div>
+                  ))}
+               </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === "configurations" && (
           <div className="max-w-5xl mx-auto space-y-6">
             {!isConfigAuthenticated ? (
@@ -4362,7 +4450,7 @@ export default function App() {
       </div>
 
       {/* Right Column (4 Cols): Weather & AQI Environmental Panel (Only shown when accessed via localhost:3000) */}
-      {isLocalhost && (
+      {isLocalhost && activeTab !== "status" && (
         <div className="lg:col-span-4 flex flex-col w-full gap-6">
           {activeTab === "media" ? (
             <div className="flex flex-col gap-6">

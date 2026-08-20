@@ -895,10 +895,12 @@ async function callBridge(bridgeUrl: string, payload: any) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-    return res.ok;
+    if (!res.ok) return { success: false };
+    const data = await res.json();
+    return { success: true, data };
   } catch (err) {
     console.error("[Bridge Error]", err);
-    return false;
+    return { success: false };
   }
 }
 
@@ -921,39 +923,34 @@ app.post("/api/media/search", async (req, res) => {
 
 app.post("/api/media/play", async (req, res) => {
   try {
-    const { track, category, queue, bridgeUrl } = req.body;
+    const { track, category, bridgeUrl } = req.body;
 
     if (!bridgeUrl) return res.status(400).json({ error: "Bridge URL required" });
 
-    if (queue) {
-      mediaQueue = queue;
-      mediaQueueIndex = queue.findIndex((t: any) => t.title === track?.title);
-    }
-
-    let tracksToPlay: string[] = [];
-
+    let query = "";
     if (category) {
       console.log(`[Media] Playing category: ${category}`);
-      const prompt = `Return a list of 20 trendy and latest hits (popular on YouTube, Instagram, Facebook) for the category: "${category}". Return a JSON object with a "results" array of objects containing "title", "artist", "thumbnail", and "searchQuery".`;
-      const data = await callOpenAI(prompt);
-      mediaQueue = data.results;
-      mediaQueueIndex = 0;
-      currentTrack = mediaQueue[0];
-      tracksToPlay = mediaQueue.map(t => t.searchQuery || `${t.title} ${t.artist}`);
+      query = `${category}, playlist`;
+      currentTrack = { title: category.replace(/_/g, " "), artist: "AI Playlist" };
     } else if (track) {
+      console.log(`[Media] Playing track: ${track.title}`);
+      query = `${track.title}, song`;
       currentTrack = track;
-      tracksToPlay = [track.searchQuery || `${track.title} ${track.artist}`];
     } else {
       return res.status(400).json({ error: "Track or category required" });
     }
 
     // Send to bridge
-    const success = await callBridge(bridgeUrl, {
+    const result = await callBridge(bridgeUrl, {
       action: "play_music",
-      tracks: tracksToPlay
+      query: query
     });
 
-    return res.json({ success, track: currentTrack });
+    return res.json({
+      success: result.success,
+      track: currentTrack,
+      output: result.data?.message || result.data?.output || ""
+    });
   } catch (error: any) {
     console.error("[Media Play Error]", error.message);
     return res.status(500).json({ error: error.message });
@@ -970,33 +967,15 @@ app.post("/api/media/control", async (req, res) => {
     return res.json({ success: true });
   }
 
-  if (action === "next") {
-    if (mediaQueueIndex < mediaQueue.length - 1) {
-      mediaQueueIndex++;
-      currentTrack = mediaQueue[mediaQueueIndex];
-      const success = await callBridge(bridgeUrl, {
-        action: "play_music",
-        tracks: [currentTrack.searchQuery || `${currentTrack.title} ${currentTrack.artist}`]
-      });
-      return res.json({ success, track: currentTrack });
-    }
-    return res.json({ success: false, message: "End of queue" });
-  }
+  // Next/Prev are slightly more complex now since music.py handles its own queue.
+  // For now, we'll just forward the action to the bridge if supported, or return error.
+  const result = await callBridge(bridgeUrl, { action: `media_${action}` });
 
-  if (action === "prev") {
-    if (mediaQueueIndex > 0) {
-      mediaQueueIndex--;
-      currentTrack = mediaQueue[mediaQueueIndex];
-      const success = await callBridge(bridgeUrl, {
-        action: "play_music",
-        tracks: [currentTrack.searchQuery || `${currentTrack.title} ${currentTrack.artist}`]
-      });
-      return res.json({ success, track: currentTrack });
-    }
-    return res.json({ success: false, message: "Beginning of queue" });
-  }
-
-  return res.status(400).json({ error: "Invalid action" });
+  return res.json({
+    success: result.success,
+    track: currentTrack,
+    output: result.data?.message || result.data?.output || ""
+  });
 });
 
 app.get("/api/media/status", (req, res) => {

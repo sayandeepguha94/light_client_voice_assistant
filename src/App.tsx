@@ -944,28 +944,28 @@ const MEDIA_CATEGORIES = [
     id: "party",
     label: "Party Hits",
     sub: [
-      { id: "latest hindi party songs trendy", label: "Hindi" },
-      { id: "top trendy english party songs", label: "English" },
-      { id: "party mix hindi and english latest", label: "Mix" }
+      { id: "party_hits_hindi", label: "Hindi" },
+      { id: "party_hits_english", label: "English" },
+      { id: "party_hits_mix", label: "Mix" }
     ]
   },
   {
     id: "workout",
     label: "Workout Energy",
     sub: [
-      { id: "hindi workout gym songs trendy", label: "Hindi" },
-      { id: "english workout hits gym popular", label: "English" },
-      { id: "gym motivation mix hindi english trendy", label: "Mix" }
+      { id: "workout_energy_hindi", label: "Hindi" },
+      { id: "workout_energy_english", label: "English" },
+      { id: "workout_energy_mix", label: "Mix" }
     ]
   },
   {
     id: "moods",
     label: "Mood Suggestions",
     sub: [
-      { id: "calm and relaxing hits hindi english mix", label: "Calm" },
-      { id: "joyful and happy songs trendy", label: "Joy" },
-      { id: "romantic hits latest hindi english", label: "Romantic" },
-      { id: "sad and soulful trendy songs", label: "Sad" }
+      { id: "moods_calm", label: "Calm" },
+      { id: "moods_joy", label: "Joy" },
+      { id: "moods_romantic", label: "Romantic" },
+      { id: "moods_sad", label: "Sad" }
     ]
   }
 ];
@@ -1126,6 +1126,7 @@ export default function App() {
   const [activeMediaCategory, setActiveMediaCategory] = useState<string | null>(null);
   const [mediaExpandedGroups, setMediaExpandedGroups] = useState<string[]>([]);
   const [currentMediaContext, setCurrentMediaContext] = useState<string | null>(null);
+  const [isMediaLoading, setIsMediaLoading] = useState(false);
 
   // User stopped speech recognition ref (prevents auto-restart when user manually clicks orb to stop)
   const userStoppedRef = useRef<boolean>(false);
@@ -1204,8 +1205,10 @@ export default function App() {
           const cat = group.sub.find(s => s.id === categoryId);
           if (cat) contextText = `${group.label}, ${cat.label}`;
         });
+        setIsMediaLoading(true);
       } else if (track) {
         contextText = `Search Result: ${track.title}`;
+        setIsMediaLoading(true);
       }
 
       const res = await fetch("/api/media/play", {
@@ -1221,15 +1224,24 @@ export default function App() {
         if (contextText) setCurrentMediaContext(contextText);
         setMediaSearchQuery("");
         setMediaSuggestions([]);
+
+        // Add song list output to logs if available
+        if (data.output) {
+          addLog("success", categoryId ? `Playlist Loaded: ${categoryId}` : `Song Loaded: ${track.title}`, data.output);
+        }
       }
     } catch (err) {
       console.error("Failed to play", err);
+    } finally {
+      setIsMediaLoading(false);
     }
   };
 
   const handleMediaControl = async (action: "stop" | "next" | "prev") => {
     try {
       const bridgeUrl = `http://${config.serverIp}:${config.serverPort}`;
+      if (action !== "stop") setIsMediaLoading(true);
+
       const res = await fetch("/api/media/control", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1239,13 +1251,19 @@ export default function App() {
         if (action === "stop") {
           setIsMediaPlaying(false);
           setCurrentMediaTrack(null);
+          setCurrentMediaContext(null);
         } else {
           const data = await res.json();
           if (data.track) setCurrentMediaTrack(data.track);
+          if (data.output) {
+            addLog("info", `Media Control: ${action}`, data.output);
+          }
         }
       }
     } catch (err) {
       console.error("Control failed", err);
+    } finally {
+      setIsMediaLoading(false);
     }
   };
 
@@ -4036,7 +4054,15 @@ export default function App() {
             {/* MIDDLE ROW: Player (6) and Playlists (6) */}
             <div className="lg:col-span-6 space-y-6">
               {/* Player Area */}
-              <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[460px] text-center relative overflow-hidden group">
+              <div className="bg-[#11131f]/40 border border-white/5 rounded-3xl p-8 flex flex-col items-center justify-center min-h-[280px] text-center relative overflow-hidden group">
+                {/* Loading Overlay */}
+                {isMediaLoading && (
+                  <div className="absolute inset-0 z-30 bg-[#0b0c10]/80 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
+                    <RefreshCw className="w-6 h-6 text-rose-500 animate-spin mb-3" />
+                    <p className="text-[10px] font-bold text-white uppercase tracking-widest animate-pulse">Loading...</p>
+                  </div>
+                )}
+
                 {/* Now Playing Category Label */}
                 {currentMediaContext && (
                   <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 w-full px-4 animate-fade-in">
@@ -4050,14 +4076,14 @@ export default function App() {
                 <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
 
                 {currentMediaTrack ? (
-                  <div className="relative z-10 animate-fade-in space-y-8 w-full max-w-md">
+                  <div className="relative z-10 animate-fade-in space-y-6 w-full max-w-md">
                     {/* Stylized Jerry Icon */}
-                    <div className="relative mx-auto w-32 h-32">
-                      <div className={`absolute inset-0 bg-rose-500/20 rounded-full blur-2xl transition-all duration-1000 ${isMediaPlaying ? 'scale-110 opacity-100' : 'scale-90 opacity-50'}`}></div>
+                    <div className="relative mx-auto w-24 h-24">
+                      <div className={`absolute inset-0 bg-rose-500/20 rounded-full blur-2xl transition-all duration-1000 ${isMediaPlaying ? 'scale-100 opacity-100' : 'scale-75 opacity-50'}`}></div>
                       <div className={`relative w-full h-full rounded-full border-2 border-rose-500/30 bg-black flex items-center justify-center shadow-2xl transition-transform duration-700 ${isMediaPlaying ? 'scale-100' : 'scale-95'}`}>
-                        <Radio className={`w-12 h-12 text-rose-600 transition-all ${isMediaPlaying ? 'animate-pulse' : 'opacity-40'}`} />
+                        <Radio className={`w-10 h-10 text-rose-600 transition-all ${isMediaPlaying ? 'animate-pulse' : 'opacity-40'}`} />
                         {isMediaPlaying && (
-                          <div className="absolute -bottom-1 right-2 p-1.5 bg-rose-500 rounded-full shadow-lg">
+                          <div className="absolute -bottom-1 right-1 p-1 bg-rose-500 rounded-full shadow-lg">
                             <div className="flex gap-0.5">
                               {[1,2,3].map(i => <div key={i} className="w-0.5 bg-white rounded-full animate-music-bar" style={{animationDelay: `${i*0.2}s`}}></div>)}
                             </div>
@@ -4114,12 +4140,12 @@ export default function App() {
             </div>
 
             <div className="lg:col-span-6 space-y-4">
-              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl h-full flex flex-col min-h-[460px]">
+              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-4 rounded-2xl h-full flex flex-col min-h-[280px]">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2 border-b border-white/5 pb-3">
                   <LayoutGrid className="w-4 h-4 text-rose-400" />
                   Trendy Playlists & Moods
                 </h3>
-                <div className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[300px]">
+                <div className="space-y-4 flex-1 overflow-y-auto pr-1 scrollbar-thin max-h-[160px]">
                   {MEDIA_CATEGORIES.map(group => {
                     const isExpanded = mediaExpandedGroups.includes(group.id);
 
@@ -4194,7 +4220,7 @@ export default function App() {
                 </div>
                 <div
                   ref={mediaConsoleRef}
-                  className="h-32 overflow-y-auto p-3 font-mono text-[10px] space-y-1 scrollbar-thin scrollbar-thumb-white/10"
+                  className="h-48 overflow-y-auto p-3 font-mono text-[10px] space-y-1 scrollbar-thin scrollbar-thumb-white/10"
                 >
                   {logs.length === 0 ? (
                     <div className="text-slate-700 italic">Waiting for backend telemetry...</div>

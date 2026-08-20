@@ -34,6 +34,10 @@ export default function UserManagement({ onLog, allDevices }: UserManagementProp
   const [configPassword, setConfigPassword] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
 
+  // Controller Password State
+  const [ctrlPassword, setCtrlPassword] = useState("");
+  const [isSavingCtrlPassword, setIsSavingCtrlPassword] = useState(false);
+
   // New User Form State
   const [formData, setFormData] = useState({
     name: "",
@@ -54,6 +58,7 @@ export default function UserManagement({ onLog, allDevices }: UserManagementProp
   useEffect(() => {
     fetchUsers();
     fetchConfigPassword();
+    fetchControllerPassword();
   }, []);
 
   const fetchUsers = async () => {
@@ -85,6 +90,18 @@ export default function UserManagement({ onLog, allDevices }: UserManagementProp
     }
   };
 
+  const fetchControllerPassword = async () => {
+    try {
+      const res = await fetch("/api/admin/controller-password");
+      if (res.ok) {
+        const data = await res.json();
+        setCtrlPassword(data.password || "");
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch controller password", err);
+    }
+  };
+
   const handleSaveConfigPassword = async () => {
     if (!configPassword.trim()) {
       onLog("warning", "Password Required", "The configuration access password cannot be empty.");
@@ -107,6 +124,31 @@ export default function UserManagement({ onLog, allDevices }: UserManagementProp
       onLog("error", "Error saving config password", err.message);
     } finally {
       setIsSavingPassword(false);
+    }
+  };
+
+  const handleSaveCtrlPassword = async () => {
+    if (!ctrlPassword.trim()) {
+      onLog("warning", "Password Required", "The controller access password cannot be empty.");
+      return;
+    }
+    setIsSavingCtrlPassword(true);
+    try {
+      const res = await fetch("/api/admin/controller-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: ctrlPassword }),
+      });
+
+      if (res.ok) {
+        onLog("success", "Controller access security updated successfully.");
+      } else {
+        onLog("error", "Failed to update controller security");
+      }
+    } catch (err: any) {
+      onLog("error", "Error saving controller password", err.message);
+    } finally {
+      setIsSavingCtrlPassword(false);
     }
   };
 
@@ -475,36 +517,73 @@ export default function UserManagement({ onLog, allDevices }: UserManagementProp
         </div>
 
         <div className="bg-[#111216] border border-[#1e222b] rounded-2xl p-6 shadow-xl">
-          <div className="max-w-md space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Lock className="w-3.5 h-3.5 text-amber-400" />
-                <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Dashboard Config Password</label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Dashboard Config Password */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Dashboard Config Password</label>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={configPassword}
+                    onChange={e => setConfigPassword(e.target.value)}
+                    className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg pl-9 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                    placeholder="admin0466"
+                  />
+                  <Settings className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
+                </div>
+                <p className="text-[10px] text-slate-500 leading-tight">
+                  Protects the <strong>Config</strong> tab from unauthorized access. Default: 'admin0466'.
+                </p>
               </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={configPassword}
-                  onChange={e => setConfigPassword(e.target.value)}
-                  className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg pl-9 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
-                  placeholder="admin0466"
-                />
-                <Settings className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
+
+              <div className="pt-2">
+                <button
+                  onClick={handleSaveConfigPassword}
+                  disabled={isSavingPassword}
+                  className="w-full bg-amber-600 hover:bg-amber-500 disabled:bg-amber-800 text-white text-[10px] font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 active:scale-95"
+                >
+                  {isSavingPassword ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  Update Config Security
+                </button>
               </div>
-              <p className="text-[10px] text-slate-500 leading-tight">
-                This password protects the <strong>Config</strong> tab from unauthorized access. Default is 'admin0466'.
-              </p>
             </div>
 
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={handleSaveConfigPassword}
-                disabled={isSavingPassword}
-                className="bg-amber-600 hover:bg-amber-500 disabled:bg-amber-800 text-white text-xs font-bold px-8 py-2.5 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-amber-500/10 active:scale-95"
-              >
-                {isSavingPassword ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                Update Dashboard Security
-              </button>
+            {/* Controller Password */}
+            <div className="space-y-4 border-l border-white/5 pl-0 md:pl-8">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Layout className="w-3.5 h-3.5 text-cyan-400" />
+                  <label className="text-[11px] uppercase tracking-wider text-gray-400 font-mono">Controller (Clock) Password</label>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={ctrlPassword}
+                    onChange={e => setCtrlPassword(e.target.value)}
+                    className="w-full bg-[#161a22] border border-[#242c3d] rounded-lg pl-9 pr-3 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+                    placeholder="admin0466"
+                  />
+                  <Key className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" />
+                </div>
+                <p className="text-[10px] text-slate-500 leading-tight">
+                  Protects the <strong>Dashboard Hub</strong> from the Clock page. Default: 'admin0466'.
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  onClick={handleSaveCtrlPassword}
+                  disabled={isSavingCtrlPassword}
+                  className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-cyan-800 text-white text-[10px] font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/10 active:scale-95"
+                >
+                  {isSavingCtrlPassword ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  Update Controller Security
+                </button>
+              </div>
             </div>
           </div>
         </div>

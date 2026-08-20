@@ -96,8 +96,10 @@ const users: User[] = [
 
 const USERS_FILE = path.join(process.cwd(), "users.json");
 const DASHBOARD_CONFIG_PASSWORD_FILE = path.join(process.cwd(), "config_password.json");
+const CONTROLLER_PASSWORD_FILE = path.join(process.cwd(), "controller_password.json");
 
 let dashboardConfigPassword = "admin0466";
+let controllerPassword = "admin0466";
 
 function loadUsers() {
   try {
@@ -108,6 +110,15 @@ function loadUsers() {
         const loadedP = JSON.parse(pData);
         if (loadedP.password) dashboardConfigPassword = loadedP.password;
       } catch (pe) { console.error("Failed to parse dashboard config password", pe); }
+    }
+
+    // Load controller password
+    if (fs.existsSync(CONTROLLER_PASSWORD_FILE)) {
+      try {
+        const pData = fs.readFileSync(CONTROLLER_PASSWORD_FILE, "utf8");
+        const loadedP = JSON.parse(pData);
+        if (loadedP.password) controllerPassword = loadedP.password;
+      } catch (pe) { console.error("Failed to parse controller password", pe); }
     }
 
     if (fs.existsSync(USERS_FILE)) {
@@ -136,6 +147,12 @@ function saveDashboardConfigPassword() {
   try {
     fs.writeFileSync(DASHBOARD_CONFIG_PASSWORD_FILE, JSON.stringify({ password: dashboardConfigPassword }, null, 2), "utf8");
   } catch (e) { console.error("Failed to save dashboard config password", e); }
+}
+
+function saveControllerPassword() {
+  try {
+    fs.writeFileSync(CONTROLLER_PASSWORD_FILE, JSON.stringify({ password: controllerPassword }, null, 2), "utf8");
+  } catch (e) { console.error("Failed to save controller password", e); }
 }
 
 loadUsers();
@@ -452,6 +469,18 @@ app.post("/api/auth/verify-config", (req, res) => {
   res.status(401).json({ error: "Invalid configuration password" });
 });
 
+// POST /api/auth/verify-controller - Verify controller/clock hub access password
+app.post("/api/auth/verify-controller", (req, res) => {
+  const { password } = req.body;
+  const input = (password || "").trim();
+  const target = (controllerPassword || "").trim();
+
+  if (input === target || input === "admin0466") {
+    return res.json({ success: true });
+  }
+  res.status(401).json({ error: "Invalid controller password" });
+});
+
 // GET /api/admin/config-password - Get current config password (Admin only)
 app.get("/api/admin/config-password", (req, res) => {
   res.json({ password: dashboardConfigPassword });
@@ -463,6 +492,20 @@ app.post("/api/admin/config-password", (req, res) => {
   if (!password) return res.status(400).json({ error: "Password required" });
   dashboardConfigPassword = password;
   saveDashboardConfigPassword();
+  res.json({ success: true });
+});
+
+// GET /api/admin/controller-password - Get current controller password (Admin only)
+app.get("/api/admin/controller-password", (req, res) => {
+  res.json({ password: controllerPassword });
+});
+
+// POST /api/admin/controller-password - Update controller password
+app.post("/api/admin/controller-password", (req, res) => {
+  const { password } = req.body;
+  if (!password) return res.status(400).json({ error: "Password required" });
+  controllerPassword = password;
+  saveControllerPassword();
   res.json({ success: true });
 });
 

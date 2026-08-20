@@ -1092,7 +1092,7 @@ export default function App() {
     setIsVerifyingHub(true);
     setHubAuthError(false);
     try {
-      const res = await fetch("/api/auth/verify-config", {
+      const res = await fetch("/api/auth/verify-controller", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: hubAuthPassword }),
@@ -3166,6 +3166,7 @@ export default function App() {
             <button
               onClick={() => {
                 setRouteInfo({ mode: "full" });
+                setIsHubAuthenticated(false); // Reset hub auth when going back to status
                 setActiveTab("status");
                 if (typeof window !== "undefined") window.history.pushState({}, "", "/");
               }}
@@ -3176,8 +3177,8 @@ export default function App() {
               }`}
               title="View System Status"
             >
-              <Clock className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline">To Status</span>
+              <Clock className="w-4 h-4 pointer-events-none" />
+              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline pointer-events-none">To Status</span>
             </button>
             <button
               onClick={() => {
@@ -4264,40 +4265,47 @@ export default function App() {
             {!isHubAuthenticated && !showHubAuth ? (
               <button
                 onClick={() => setShowHubAuth(true)}
-                className="group flex items-center gap-2.5 px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-105 active:scale-95"
+                className="group flex items-center gap-2.5 px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-105 active:scale-95 cursor-pointer relative z-50"
               >
-                <Lock className="w-4 h-4 text-amber-500 group-hover:rotate-12 transition-transform" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Unlock Dashboard Hub</span>
+                <Lock className="w-4 h-4 text-amber-500 group-hover:rotate-12 transition-transform pointer-events-none" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300 pointer-events-none">Unlock Dashboard Hub</span>
               </button>
             ) : showHubAuth ? (
-              <form onSubmit={handleHubAuth} className="flex items-center gap-2 animate-fade-in bg-black/20 p-1 rounded-xl border border-white/5">
-                <input
-                  type="password"
-                  value={hubAuthPassword}
-                  onChange={(e) => setHubAuthPassword(e.target.value)}
-                  placeholder="Access Key"
-                  autoFocus
-                  className={`bg-black/40 border ${hubAuthError ? "border-rose-500" : "border-white/10"} rounded-lg px-3 py-1.5 text-[10px] text-white focus:outline-none focus:border-cyan-500 transition-all w-32`}
-                />
-                <button
-                  type="submit"
-                  disabled={isVerifyingHub}
-                  className="p-1.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-500/30 transition-all"
-                >
-                  {isVerifyingHub ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                </button>
+              <div className="animate-fade-in bg-black/20 p-1 rounded-xl border border-white/5 flex items-center gap-2">
+                <form onSubmit={handleHubAuth} className="flex items-center gap-2">
+                  <input
+                    type="password"
+                    value={hubAuthPassword}
+                    onChange={(e) => setHubAuthPassword(e.target.value)}
+                    placeholder="Access Key"
+                    autoFocus
+                    className={`bg-black/40 border ${hubAuthError ? "border-rose-500" : "border-white/10"} rounded-lg px-3 py-1.5 text-[10px] text-white focus:outline-none focus:border-cyan-500 transition-all w-32`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={isVerifyingHub}
+                    className="p-1.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-500/30 transition-all cursor-pointer"
+                  >
+                    {isVerifyingHub ? <RefreshCw className="w-4 h-4 animate-spin pointer-events-none" /> : <ShieldCheck className="w-4 h-4 pointer-events-none" />}
+                  </button>
+                </form>
                 <button
                   type="button"
                   onClick={() => { setShowHubAuth(false); setHubAuthError(false); setHubAuthPassword(""); }}
-                  className="p-1.5 text-slate-500 hover:text-white transition-colors"
+                  className="p-1.5 text-slate-500 hover:text-white transition-colors cursor-pointer"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-4 h-4 pointer-events-none" />
                 </button>
-              </form>
+              </div>
             ) : (
               <button
                 onClick={() => setActiveTab("devices")}
-                className="group flex items-center gap-2.5 px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-105 active:scale-95"
+                className="group flex items-center gap-2.5 px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-105 active:scale-95 cursor-pointer relative z-50"
+              >
+                <LayoutGrid className="w-4 h-4 text-cyan-400 group-hover:rotate-90 transition-transform duration-500 pointer-events-none" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300 pointer-events-none">Open Dashboard Hub</span>
+              </button>
+            )}
               >
                 <LayoutGrid className="w-4 h-4 text-cyan-400 group-hover:rotate-90 transition-transform duration-500" />
                 <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Open Dashboard Hub</span>

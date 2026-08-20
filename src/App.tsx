@@ -1003,7 +1003,7 @@ export default function App() {
           return "chat";
         }
       }
-      return "devices";
+      return "status";
     }
   );
 
@@ -1017,6 +1017,8 @@ export default function App() {
           setActiveTab("shopping");
         } else if (route.mode === "room") {
           setActiveTab("devices");
+        } else if (route.mode === "full") {
+          setActiveTab("status");
         }
       }
     };
@@ -4226,70 +4228,70 @@ export default function App() {
         )}
 
         {activeTab === "status" && (
-          <div className="w-full max-w-4xl mx-auto flex flex-col items-center gap-12 py-12 animate-fade-in">
+          <div className="w-full max-w-4xl mx-auto flex flex-col items-center justify-center gap-4 py-2 animate-fade-in min-h-[90vh] overflow-hidden">
             {/* Top Return Button */}
             <button
               onClick={() => setActiveTab("devices")}
-              className="group flex items-center gap-3 px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl transition-all hover:scale-105 active:scale-95"
+              className="group flex items-center gap-2.5 px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-105 active:scale-95"
             >
-              <LayoutGrid className="w-5 h-5 text-cyan-400 group-hover:rotate-90 transition-transform duration-500" />
-              <span className="text-sm font-bold uppercase tracking-widest text-slate-300">Open Dashboard Hub</span>
+              <LayoutGrid className="w-4 h-4 text-cyan-400 group-hover:rotate-90 transition-transform duration-500" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Open Dashboard Hub</span>
             </button>
 
             {/* Giant Clock Section */}
             <div className="flex flex-col items-center text-center">
               <div className="relative">
-                <div className="absolute inset-0 bg-cyan-500/20 blur-[100px] rounded-full scale-150"></div>
-                <h1 className="text-[120px] md:text-[180px] font-black font-mono leading-none tracking-tighter text-white drop-shadow-[0_0_30px_rgba(34,211,238,0.3)] relative z-10">
+                <div className="absolute inset-0 bg-cyan-500/10 blur-[100px] rounded-full scale-150"></div>
+                <h1 className="text-[100px] md:text-[150px] font-black font-mono leading-none tracking-tighter text-white drop-shadow-[0_0_30px_rgba(34,211,238,0.2)] relative z-10">
                   {currentTime.split(' ')[0]}
                 </h1>
               </div>
-              <p className="text-xl md:text-2xl font-medium text-slate-400 tracking-[0.3em] uppercase mt-4">
+              <p className="text-lg md:text-xl font-medium text-slate-500 tracking-[0.4em] uppercase -mt-2">
                 {new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' })}
               </p>
             </div>
 
             {/* Environment Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
-              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-6 rounded-3xl flex items-center justify-between shadow-2xl">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-amber-400">
-                    <Thermometer className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Temperature</p>
-                    <p className="text-3xl font-black text-white font-mono">31°C</p>
-                  </div>
+            <div className="grid grid-cols-2 gap-4 w-full max-w-lg mt-2">
+              <div className="bg-[#11131f]/40 backdrop-blur-md border border-white/5 p-4 rounded-2xl flex items-center gap-3 shadow-xl">
+                <div className="p-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400">
+                  <Thermometer className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Temperature</p>
+                  <p className="text-xl font-black text-white font-mono leading-none">31°C</p>
                 </div>
               </div>
 
-              <div className="bg-[#11131f]/60 backdrop-blur-md border border-white/10 p-6 rounded-3xl flex items-center justify-between shadow-2xl">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-emerald-400">
-                    <Wind className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Air Quality</p>
-                    <p className="text-3xl font-black text-white font-mono">68</p>
-                    <span className="text-[9px] font-bold text-emerald-500 uppercase">Moderate</span>
+              <div className="bg-[#11131f]/40 backdrop-blur-md border border-white/5 p-4 rounded-2xl flex items-center gap-3 shadow-xl">
+                <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400">
+                  <Wind className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Air Quality</p>
+                  <div className="flex items-baseline gap-2 leading-none">
+                    <p className="text-xl font-black text-white font-mono">68</p>
+                    <span className="text-[7px] font-bold text-emerald-500 uppercase">Moderate</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Device Status Grid */}
-            <div className="w-full bg-[#11131f]/40 border border-white/5 p-8 rounded-[40px] shadow-inner">
-               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em] mb-8 text-center">IoT Ecosystem Live Feed</h3>
-               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {devices.map(dev => (
-                    <div key={dev.id} className="flex flex-col items-center p-4 bg-white/5 border border-white/5 rounded-2xl gap-2">
-                       <div className={`w-2 h-2 rounded-full ${dev.on ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : 'bg-slate-700'}`}></div>
-                       <span className="text-[11px] font-bold text-slate-300 truncate w-full text-center">{dev.name}</span>
-                       <span className={`text-[9px] font-mono uppercase ${dev.on ? 'text-cyan-400' : 'text-slate-500'}`}>
+            {/* Device Status Flex - Active Only */}
+            <div className="w-full max-w-2xl mt-4">
+               <div className="flex flex-wrap justify-center gap-2">
+                  {devices.filter(d => d.on).map(dev => (
+                    <div key={dev.id} className="flex items-center px-3 py-1 bg-white/5 border border-white/5 rounded-full gap-2 transition-all hover:bg-white/10">
+                       <div className="w-1 h-1 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]"></div>
+                       <span className="text-[10px] font-bold text-slate-300 whitespace-nowrap">{dev.name}</span>
+                       <span className="text-[8px] font-mono uppercase text-cyan-400/80">
                          {dev.statusText}
                        </span>
                     </div>
                   ))}
+                  {devices.filter(d => d.on).length === 0 && (
+                    <p className="text-[10px] text-slate-600 font-mono italic">All systems standby // No active devices</p>
+                  )}
                </div>
             </div>
           </div>

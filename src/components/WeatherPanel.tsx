@@ -139,9 +139,9 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({ onAddLog }) => {
   const [selectedCityKey, setSelectedCityKey] = useState<string>("Kolkata");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState<string>("Just now");
-  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
-  const [showEnvConditions, setShowEnvConditions] = useState<boolean>(true);
-  const [showPollutants, setShowPollutants] = useState<boolean>(true);
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(true);
+  const [showEnvConditions, setShowEnvConditions] = useState<boolean>(false);
+  const [showPollutants, setShowPollutants] = useState<boolean>(false);
 
   const weather = CITIES_WEATHER[selectedCityKey] || CITIES_WEATHER["Kolkata"];
 

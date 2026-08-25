@@ -308,6 +308,50 @@ function pcmToWav(pcmBuffer: Buffer, sampleRate: number = 24000): Buffer {
   return Buffer.concat([wavHeader, pcmBuffer]);
 }
 
+// Piper TTS Generation Helper
+async function generatePiperTTS(text: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    // Get model path from env or use default
+    const modelPath = process.env.PIPER_MODEL_PATH || path.join(process.cwd(), "models", "en_US-amy-medium.onnx");
+    const piperPath = process.env.PIPER_EXE_PATH || "piper";
+
+    console.log(`[Piper] Synthesizing: "${text}" using model: ${path.basename(modelPath)}`);
+
+    // --output_file - tells piper to stream the WAV (with header) to stdout
+    const child = spawn(piperPath, ["--model", modelPath, "--output_file", "-"]);
+
+    let audioBuffer = Buffer.alloc(0);
+    let errorOutput = "";
+
+    child.stdout.on("data", (data) => {
+      audioBuffer = Buffer.concat([audioBuffer, data]);
+    });
+
+    child.stderr.on("data", (data) => {
+      errorOutput += data.toString();
+    });
+
+    child.stdin.write(text);
+    child.stdin.end();
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        if (audioBuffer.length === 0) {
+          reject(new Error("Piper produced empty audio output"));
+        } else {
+          resolve(audioBuffer);
+        }
+      } else {
+        reject(new Error(`Piper exited with code ${code}: ${errorOutput}`));
+      }
+    });
+
+    child.on("error", (err) => {
+      reject(err);
+    });
+  });
+}
+
 // Simple rule-based command parser as an ultra-reliable local fallback (no LLM / no AI processing)
 function parseCommandRuleBased(text: string) {
   const normalized = text.toLowerCase();
@@ -740,42 +784,19 @@ app.post("/api/parse-audio", upload.single("audio"), async (req, res) => {
       applyBackendControl(cmd.room, cmd.device, cmd.action, cmd.value);
     });
 
-    // 3. Generate voice response TTS (if API key is present)
+    // 3. Generate voice response TTS using Piper (Amy)
     let audioUrl: string | null = null;
     let audioBase64: string | null = null;
 
-    if (hasApiKey) {
-      try {
-        const ai = getGeminiClient();
-        console.log(`[TTS] Generating voice for response: "${result.response}"`);
-        
-        const ttsResponse = await ai.models.generateContent({
-          model: "gemini-3.1-flash-tts-preview",
-          contents: [{ parts: [{ text: result.response }] }],
-          config: {
-            responseModalities: ["AUDIO"],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: "Kore" }, // Warm & responsive assistant voice
-              },
-            },
-          },
-        });
+    try {
+      const wavBuffer = await generatePiperTTS(result.response);
 
-        const base64Pcm = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-        if (base64Pcm) {
-          const rawPcm = Buffer.from(base64Pcm, "base64");
-          // Pack PCM into WAV
-          const wavBuffer = pcmToWav(rawPcm, 24000);
-          
-          // Cache the wav file for subsequent binary streaming
-          const cachedId = cacheAudioFile(wavBuffer, "audio/wav");
-          audioUrl = `/api/audio/${cachedId}.wav`;
-          audioBase64 = wavBuffer.toString("base64");
-        }
-      } catch (err: any) {
-        console.error("[TTS] Failed to generate speech", err.message);
-      }
+      // Cache the wav file for subsequent binary streaming
+      const cachedId = cacheAudioFile(wavBuffer, "audio/wav");
+      audioUrl = `/api/audio/${cachedId}.wav`;
+      audioBase64 = wavBuffer.toString("base64");
+    } catch (err: any) {
+      console.error("[TTS] Piper generation failed", err.message);
     }
 
     return res.json({
@@ -784,8 +805,7 @@ app.post("/api/parse-audio", upload.single("audio"), async (req, res) => {
       commands: result.commands,
       audioUrl,
       audioBase64,
-      source: hasApiKey ? "gemini-ai-transcription-and-tts" : "fallback-static-mode",
-      warning: hasApiKey ? undefined : "Set your GEMINI_API_KEY in the Secrets panel for fully functional Voice AI transcription!"
+      source: "piper-local-tts",
     });
 
   } catch (error: any) {
@@ -802,35 +822,9 @@ app.post("/api/tts", async (req, res) => {
       return res.status(400).json({ error: "Missing 'text' field in JSON request" });
     }
 
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(400).json({ 
-        error: "GEMINI_API_KEY is not set. Go to Settings > Secrets in AI Studio to configure it." 
-      });
-    }
-
-    const ai = getGeminiClient();
-    console.log(`[TTS] Generating voice for on-demand text: "${text}"`);
+    console.log(`[TTS] Generating Piper voice for on-demand text: "${text}"`);
     
-    const ttsResponse = await ai.models.generateContent({
-      model: "gemini-3.1-flash-tts-preview",
-      contents: [{ parts: [{ text: text }] }],
-      config: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: "Kore" },
-          },
-        },
-      },
-    });
-
-    const base64Pcm = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!base64Pcm) {
-      return res.status(500).json({ error: "Failed to generate TTS audio data" });
-    }
-
-    const rawPcm = Buffer.from(base64Pcm, "base64");
-    const wavBuffer = pcmToWav(rawPcm, 24000);
+    const wavBuffer = await generatePiperTTS(text);
     const cachedId = cacheAudioFile(wavBuffer, "audio/wav");
 
     return res.json({

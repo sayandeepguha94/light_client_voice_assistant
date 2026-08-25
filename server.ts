@@ -155,6 +155,12 @@ function saveControllerPassword() {
   } catch (e) { console.error("Failed to save controller password", e); }
 }
 
+function saveControllerPassword() {
+  try {
+    fs.writeFileSync(CONTROLLER_PASSWORD_FILE, JSON.stringify({ password: controllerPassword }, null, 2), "utf8");
+  } catch (e) { console.error("Failed to save controller password", e); }
+}
+
 loadUsers();
 
 // Centralized Shopping List State
@@ -809,7 +815,7 @@ app.post("/api/parse-audio", upload.single("audio"), async (req, res) => {
               responseModalities: ["AUDIO"],
               speechConfig: {
                 voiceConfig: {
-                  prebuiltVoiceConfig: { voiceName: "Aoede" }, // Elegant female assistant voice
+                  prebuiltVoiceConfig: { voiceName: "Aoede" }, // Strictly using female Aoede voice
                 },
               },
             },
@@ -872,7 +878,7 @@ app.post("/api/tts", async (req, res) => {
           responseModalities: ["AUDIO"],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: "Aoede" },
+              prebuiltVoiceConfig: { voiceName: "Aoede" }, // Strictly using female Aoede voice
             },
           },
         },

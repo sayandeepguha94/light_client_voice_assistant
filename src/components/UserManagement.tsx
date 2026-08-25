@@ -38,6 +38,10 @@ export default function UserManagement({ onLog, allDevices }: UserManagementProp
   const [ctrlPassword, setCtrlPassword] = useState("");
   const [isSavingCtrlPassword, setIsSavingCtrlPassword] = useState(false);
 
+  // Controller Password State
+  const [ctrlPassword, setCtrlPassword] = useState("");
+  const [isSavingCtrlPassword, setIsSavingCtrlPassword] = useState(false);
+
   // New User Form State
   const [formData, setFormData] = useState({
     name: "",
@@ -124,6 +128,31 @@ export default function UserManagement({ onLog, allDevices }: UserManagementProp
       onLog("error", "Error saving config password", err.message);
     } finally {
       setIsSavingPassword(false);
+    }
+  };
+
+  const handleSaveCtrlPassword = async () => {
+    if (!ctrlPassword.trim()) {
+      onLog("warning", "Password Required", "The controller access password cannot be empty.");
+      return;
+    }
+    setIsSavingCtrlPassword(true);
+    try {
+      const res = await fetch("/api/admin/controller-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: ctrlPassword }),
+      });
+
+      if (res.ok) {
+        onLog("success", "Controller access security updated successfully.");
+      } else {
+        onLog("error", "Failed to update controller security");
+      }
+    } catch (err: any) {
+      onLog("error", "Error saving controller password", err.message);
+    } finally {
+      setIsSavingCtrlPassword(false);
     }
   };
 

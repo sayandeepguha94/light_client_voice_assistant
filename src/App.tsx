@@ -1200,6 +1200,17 @@ export default function App() {
     return () => window.removeEventListener("resize", checkIsMobile);
   }, []);
 
+  // Pre-load voices for Synthesis
+  useEffect(() => {
+    const loadVoices = () => {
+      window.speechSynthesis.getVoices();
+    };
+    loadVoices();
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
+
   // Poll Media Status
   useEffect(() => {
     let interval: any;
@@ -1948,20 +1959,49 @@ export default function App() {
       utterance.volume = 1.0;
       utterance.lang = selectedLanguage;
       
-      // Select an elegant female voice in the chosen language if available
+      // Select an elegant female voice
       const voices = window.speechSynthesis.getVoices();
       const langPrefix = selectedLanguage.split('-')[0];
 
-      // Keywords for female voices
-      const femaleKeywords = ["female", "amy", "zira", "samantha", "victoria", "moira", "natural", "google"];
+      // Robust Female Voice Selection
+      const getBestFemaleVoice = () => {
+        // Priority 1: High-quality Natural/Online Female voices (matching current language)
+        const premiumFemale = voices.find(v =>
+          v.lang.startsWith(langPrefix) &&
+          (v.name.toLowerCase().includes("natural") || v.name.toLowerCase().includes("online") || v.name.toLowerCase().includes("premium")) &&
+          (v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("samantha") || v.name.toLowerCase().includes("amy") || v.name.toLowerCase().includes("victoria") || v.name.toLowerCase().includes("google"))
+        );
+        if (premiumFemale) return premiumFemale;
 
-      const femaleVoice = voices.find(v => {
-        const nameLower = v.name.toLowerCase();
-        return v.lang.startsWith(langPrefix) && femaleKeywords.some(kw => nameLower.includes(kw));
-      }) || voices.find(v => v.lang.startsWith(langPrefix));
-        
+        // Priority 2: Specific high-quality female names (matching current language)
+        const specificFemale = voices.find(v =>
+          v.lang.startsWith(langPrefix) &&
+          (v.name.toLowerCase().includes("samantha") || v.name.toLowerCase().includes("victoria") || v.name.toLowerCase().includes("amy") || v.name.toLowerCase().includes("moira") || v.name.toLowerCase().includes("aria"))
+        );
+        if (specificFemale) return specificFemale;
+
+        // Priority 3: Fallback to US English Female (very natural usually)
+        const usEnglishFemale = voices.find(v =>
+          v.lang.startsWith("en-US") &&
+          (v.name.toLowerCase().includes("samantha") || v.name.toLowerCase().includes("natural") || v.name.toLowerCase().includes("google"))
+        );
+        if (usEnglishFemale) return usEnglishFemale;
+
+        // Priority 4: Any voice tagged "female"
+        const anyFemale = voices.find(v =>
+          (v.lang.startsWith(langPrefix) || v.lang.startsWith("en")) && v.name.toLowerCase().includes("female")
+        );
+        if (anyFemale) return anyFemale;
+
+        // Fallback: Best available for the language
+        return voices.find(v => v.lang.startsWith(langPrefix)) || null;
+      };
+
+      const femaleVoice = getBestFemaleVoice();
       if (femaleVoice) {
         utterance.voice = femaleVoice;
+        // Apply slight speed boost for a more "Natural" conversational feel
+        utterance.rate = femaleVoice.name.includes("Natural") ? 1.0 : 1.08;
       }
 
       utterance.onstart = () => {
@@ -3191,11 +3231,11 @@ export default function App() {
             <button
               onClick={() => {
                 setRouteInfo({ mode: "full" });
-                setIsHubAuthenticated(false); // Reset hub auth when going back to status
+                setIsHubAuthenticated(false); // Force lock every time we enter status
                 setActiveTab("status");
                 if (typeof window !== "undefined") window.history.pushState({}, "", "/");
               }}
-              className={`p-2.5 rounded-xl transition-all duration-300 cursor-pointer flex items-center gap-2 ${
+              className={`p-2.5 rounded-xl transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 ${
                 activeTab === "status"
                   ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
                   : "bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 border border-transparent"
@@ -3203,7 +3243,7 @@ export default function App() {
               title="View System Status"
             >
               <Clock className="w-4 h-4 pointer-events-none" />
-              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline pointer-events-none">To Status</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider hidden sm:inline pointer-events-none select-none">To Status</span>
             </button>
             <button
               onClick={() => {
@@ -4290,13 +4330,13 @@ export default function App() {
             {!isHubAuthenticated && !showHubAuth ? (
               <button
                 onClick={() => setShowHubAuth(true)}
-                className="group flex items-center gap-2.5 px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-105 active:scale-95 cursor-pointer relative z-50"
+                className="group flex items-center justify-center gap-2.5 px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-105 active:scale-95 cursor-pointer relative z-50 w-full max-w-[240px]"
               >
                 <Lock className="w-4 h-4 text-amber-500 group-hover:rotate-12 transition-transform pointer-events-none" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300 pointer-events-none">Unlock Dashboard Hub</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300 pointer-events-none select-none">Unlock Dashboard Hub</span>
               </button>
             ) : showHubAuth ? (
-              <div className="animate-fade-in bg-black/20 p-1 rounded-xl border border-white/5 flex items-center gap-2">
+              <div className="animate-fade-in bg-black/40 backdrop-blur-md p-1.5 rounded-xl border border-white/10 flex items-center gap-2 shadow-2xl relative z-50">
                 <form onSubmit={handleHubAuth} className="flex items-center gap-2">
                   <input
                     type="password"
@@ -4304,12 +4344,12 @@ export default function App() {
                     onChange={(e) => setHubAuthPassword(e.target.value)}
                     placeholder="Access Key"
                     autoFocus
-                    className={`bg-black/40 border ${hubAuthError ? "border-rose-500" : "border-white/10"} rounded-lg px-3 py-1.5 text-[10px] text-white focus:outline-none focus:border-cyan-500 transition-all w-32`}
+                    className={`bg-black/60 border ${hubAuthError ? "border-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.2)]" : "border-white/10"} rounded-lg px-3 py-2 text-[11px] text-white focus:outline-none focus:border-cyan-500 transition-all w-36`}
                   />
                   <button
                     type="submit"
                     disabled={isVerifyingHub}
-                    className="p-1.5 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-500/30 transition-all cursor-pointer"
+                    className="p-2 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-lg hover:bg-cyan-500/30 transition-all cursor-pointer flex items-center justify-center"
                   >
                     {isVerifyingHub ? <RefreshCw className="w-4 h-4 animate-spin pointer-events-none" /> : <ShieldCheck className="w-4 h-4 pointer-events-none" />}
                   </button>
@@ -4317,7 +4357,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => { setShowHubAuth(false); setHubAuthError(false); setHubAuthPassword(""); }}
-                  className="p-1.5 text-slate-500 hover:text-white transition-colors cursor-pointer"
+                  className="p-2 text-slate-500 hover:text-white transition-colors cursor-pointer flex items-center justify-center"
                 >
                   <X className="w-4 h-4 pointer-events-none" />
                 </button>
@@ -4325,10 +4365,10 @@ export default function App() {
             ) : (
               <button
                 onClick={() => setActiveTab("devices")}
-                className="group flex items-center gap-2.5 px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-105 active:scale-95 cursor-pointer relative z-50"
+                className="group flex items-center justify-center gap-2.5 px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-105 active:scale-95 cursor-pointer relative z-50 w-full max-w-[240px]"
               >
                 <LayoutGrid className="w-4 h-4 text-cyan-400 group-hover:rotate-90 transition-transform duration-500 pointer-events-none" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300 pointer-events-none">Open Dashboard Hub</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300 pointer-events-none select-none">Open Dashboard Hub</span>
               </button>
             )}
 

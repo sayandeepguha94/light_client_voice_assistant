@@ -155,12 +155,6 @@ function saveControllerPassword() {
   } catch (e) { console.error("Failed to save controller password", e); }
 }
 
-function saveControllerPassword() {
-  try {
-    fs.writeFileSync(CONTROLLER_PASSWORD_FILE, JSON.stringify({ password: controllerPassword }, null, 2), "utf8");
-  } catch (e) { console.error("Failed to save controller password", e); }
-}
-
 loadUsers();
 
 // Centralized Shopping List State

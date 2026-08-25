@@ -784,19 +784,49 @@ app.post("/api/parse-audio", upload.single("audio"), async (req, res) => {
       applyBackendControl(cmd.room, cmd.device, cmd.action, cmd.value);
     });
 
-    // 3. Generate voice response TTS using Piper (Amy)
+    // 3. Generate voice response TTS using Piper (Amy) with Gemini (Aoede) fallback
     let audioUrl: string | null = null;
     let audioBase64: string | null = null;
 
     try {
+      // Primary: Local Piper (Amy)
       const wavBuffer = await generatePiperTTS(result.response);
-
-      // Cache the wav file for subsequent binary streaming
       const cachedId = cacheAudioFile(wavBuffer, "audio/wav");
       audioUrl = `/api/audio/${cachedId}.wav`;
       audioBase64 = wavBuffer.toString("base64");
-    } catch (err: any) {
-      console.error("[TTS] Piper generation failed", err.message);
+    } catch (piperErr: any) {
+      console.warn("[TTS] Piper failed, falling back to Gemini Aoede:", piperErr.message);
+
+      // Fallback: Gemini Cloud (Aoede - Female)
+      const hasApiKey = !!process.env.GEMINI_API_KEY;
+      if (hasApiKey) {
+        try {
+          const ai = getGeminiClient();
+          const ttsResponse = await ai.models.generateContent({
+            model: "gemini-3.1-flash-tts-preview",
+            contents: [{ parts: [{ text: result.response }] }],
+            config: {
+              responseModalities: ["AUDIO"],
+              speechConfig: {
+                voiceConfig: {
+                  prebuiltVoiceConfig: { voiceName: "Aoede" }, // Elegant female assistant voice
+                },
+              },
+            },
+          });
+
+          const base64Pcm = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+          if (base64Pcm) {
+            const rawPcm = Buffer.from(base64Pcm, "base64");
+            const wavBuffer = pcmToWav(rawPcm, 24000);
+            const cachedId = cacheAudioFile(wavBuffer, "audio/wav");
+            audioUrl = `/api/audio/${cachedId}.wav`;
+            audioBase64 = wavBuffer.toString("base64");
+          }
+        } catch (geminiErr: any) {
+          console.error("[TTS] Gemini fallback also failed", geminiErr.message);
+        }
+      }
     }
 
     return res.json({
@@ -805,7 +835,7 @@ app.post("/api/parse-audio", upload.single("audio"), async (req, res) => {
       commands: result.commands,
       audioUrl,
       audioBase64,
-      source: "piper-local-tts",
+      source: audioUrl?.includes("piper") ? "piper-local-tts" : "gemini-fallback-tts",
     });
 
   } catch (error: any) {
@@ -824,7 +854,36 @@ app.post("/api/tts", async (req, res) => {
 
     console.log(`[TTS] Generating Piper voice for on-demand text: "${text}"`);
     
-    const wavBuffer = await generatePiperTTS(text);
+    let audioUrl: string | null = null;
+    let audioBase64: string | null = null;
+    let wavBuffer: Buffer;
+
+    try {
+      // Primary: Piper
+      wavBuffer = await generatePiperTTS(text);
+    } catch (err) {
+      console.warn("[TTS] Piper failed for on-demand TTS, falling back to Gemini Aoede");
+      // Fallback: Gemini
+      const ai = getGeminiClient();
+      const ttsResponse = await ai.models.generateContent({
+        model: "gemini-3.1-flash-tts-preview",
+        contents: [{ parts: [{ text: text }] }],
+        config: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: "Aoede" },
+            },
+          },
+        },
+      });
+
+      const base64Pcm = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!base64Pcm) throw new Error("Failed to generate fallback TTS");
+      const rawPcm = Buffer.from(base64Pcm, "base64");
+      wavBuffer = pcmToWav(rawPcm, 24000);
+    }
+
     const cachedId = cacheAudioFile(wavBuffer, "audio/wav");
 
     return res.json({

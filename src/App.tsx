@@ -1948,14 +1948,20 @@ export default function App() {
       utterance.volume = 1.0;
       utterance.lang = selectedLanguage;
       
-      // Select an elegant female/neutral voice in the chosen language if available
+      // Select an elegant female voice in the chosen language if available
       const voices = window.speechSynthesis.getVoices();
       const langPrefix = selectedLanguage.split('-')[0];
-      const premiumVoice = voices.find(v => v.lang.startsWith(langPrefix) && (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Synthesis")))
-        || voices.find(v => v.lang.startsWith(langPrefix));
+
+      // Keywords for female voices
+      const femaleKeywords = ["female", "amy", "zira", "samantha", "victoria", "moira", "natural", "google"];
+
+      const femaleVoice = voices.find(v => {
+        const nameLower = v.name.toLowerCase();
+        return v.lang.startsWith(langPrefix) && femaleKeywords.some(kw => nameLower.includes(kw));
+      }) || voices.find(v => v.lang.startsWith(langPrefix));
         
-      if (premiumVoice) {
-        utterance.voice = premiumVoice;
+      if (femaleVoice) {
+        utterance.voice = femaleVoice;
       }
 
       utterance.onstart = () => {

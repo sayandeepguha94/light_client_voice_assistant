@@ -47,15 +47,15 @@ export default function IntegrationGuide({
   };
 
   const piperModelMap: Record<string, { model: string, name: string }> = {
-    "en-US": { model: "en_US-lessac-medium.onnx", name: "en-US" },
-    "en-IN": { model: "en_US-lessac-medium.onnx", name: "en-IN" },
-    "es-ES": { model: "es_ES-sharvard-medium.onnx", name: "es-ES" },
-    "fr-FR": { model: "fr_FR-gilles-medium.onnx", name: "fr-FR" },
-    "de-DE": { model: "de_DE-thorsten-medium.onnx", name: "de-DE" },
-    "it-IT": { model: "it_IT-riccardo-medium.onnx", name: "it-IT" },
-    "hi-IN": { model: "hi_IN-fen-medium.onnx", name: "hi-IN" },
-    "zh-CN": { model: "zh_CN-huayan-medium.onnx", name: "zh-CN" },
-    "ja-JP": { model: "ja_JP-hikarina-medium.onnx", name: "ja-JP" },
+    "en-US": { model: "en_US-amy-medium.onnx", name: "en-US (Amy)" },
+    "en-IN": { model: "en_US-amy-medium.onnx", name: "en-IN (Amy)" },
+    "es-ES": { model: "es_ES-sharvard-medium.onnx", name: "es-ES (Sharvard)" },
+    "fr-FR": { model: "fr_FR-siwis-medium.onnx", name: "fr-FR (Siwis)" },
+    "de-DE": { model: "de_DE-kerstin-low.onnx", name: "de-DE (Kerstin)" },
+    "it-IT": { model: "it_IT-paola-medium.onnx", name: "it-IT (Paola)" },
+    "hi-IN": { model: "hi_IN-fen-medium.onnx", name: "hi-IN (Fen)" },
+    "zh-CN": { model: "zh_CN-huayan-medium.onnx", name: "zh-CN (Huayan)" },
+    "ja-JP": { model: "ja_JP-ami-low.onnx", name: "ja-JP (Ami)" },
   };
 
   const currentPiper = piperModelMap[selectedLanguage] || piperModelMap["en-US"];

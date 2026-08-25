@@ -1148,6 +1148,25 @@ export default function App() {
   const [latency, setLatency] = useState("4.2ms");
   const [currentTime, setCurrentTime] = useState("");
   const [selectedLanguage, setSelectedLanguage] = useState("en-IN");
+
+  // Auto-refresh logic for Status Page (every 1 minute)
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+
+    if (activeTab === "status") {
+      // Immediate sync on tab entry
+      syncDeviceStates();
+
+      // Setup interval for every 60 seconds
+      interval = setInterval(() => {
+        syncDeviceStates();
+      }, 60 * 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [activeTab]);
   const [isMobile, setIsMobile] = useState<boolean>(false);
 
   // Media Center State

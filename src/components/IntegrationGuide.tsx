@@ -670,19 +670,23 @@ if __name__ == "__main__":
         "ambient light": "switch.dine_in_4sw_modular_touch_ambient_light",
         "spot light": "switch.dine_in_4sw_modular_touch_spot_light",
         "low spot light": "switch.dine_in_4sw_modular_touch_low_spot_light",
-        "fan": "switch.dine_in_4sw_modular_touch_fan"
+        "fan": "switch.dine_in_4sw_modular_touch_fan",
+        "ac": "dine_in_ac_modular"
     },
     "bedroom": {
         "ambient light": "switch.bedroom_4node_smart_switch_2_ambient_light",
         "bedside light": "switch.bedroom_4node_smart_switch_2_bedside_light",
         "fan": "switch.bedroom_4node_smart_switch_2_fan",
-        "spot light": "switch.bedroom_4node_smart_switch_2_spot_light"
+        "spot light": "switch.bedroom_4node_smart_switch_2_spot_light",
+        "ac": "bedroom_ac_modular"
     },
     "bedroom 2": {
         "low ambient light": "switch.bedroom_2_4node_smart_switch_3_low_ambient_light",
         "fan": "switch.bedroom_2_4node_smart_switch_3_fan",
         "spot light": "switch.bedroom_2_4node_smart_switch_3_spot_light",
-        "high ambient light": "switch.bedroom_2_4node_smart_switch_3_high_ambient_light"
+        "high ambient light": "switch.bedroom_2_4node_smart_switch_3_high_ambient_light",
+        "ac": "bedroom_2_ac_modular"
+    }
     }
 }`,
     toolsModule: `from datetime import datetime, timezone

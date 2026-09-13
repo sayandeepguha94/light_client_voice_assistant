@@ -57,18 +57,21 @@ let devices: Device[] = [
   { id: "dine-in.spot light", name: "Spot Light", room: "dine-in", deviceKey: "spot light", entityId: "switch.dine_in_4sw_modular_touch_spot_light", category: "lighting", on: false, statusText: "Off" },
   { id: "dine-in.low spot light", name: "Low Spot Light", room: "dine-in", deviceKey: "low spot light", entityId: "switch.dine_in_4sw_modular_touch_low_spot_light", category: "lighting", on: false, statusText: "Off" },
   { id: "dine-in.fan", name: "Fan Switch", room: "dine-in", deviceKey: "fan", entityId: "switch.dine_in_4sw_modular_touch_fan", category: "fan", on: false, statusText: "Off" },
+  { id: "dine-in.ac", name: "Air Conditioner", room: "dine-in", deviceKey: "ac", entityId: "dine_in_ac_modular", category: "ac", on: false, value: 22, unit: "°C", statusText: "Off" },
 
   // bedroom
   { id: "bedroom.ambient light", name: "Ambient Light", room: "bedroom", deviceKey: "ambient light", entityId: "switch.bedroom_4node_smart_switch_2_ambient_light", category: "lighting", on: false, statusText: "Off" },
   { id: "bedroom.bedside light", name: "Bedside Light", room: "bedroom", deviceKey: "bedside light", entityId: "switch.bedroom_4node_smart_switch_2_bedside_light", category: "lighting", on: false, statusText: "Off" },
   { id: "bedroom.fan", name: "Fan Switch", room: "bedroom", deviceKey: "fan", entityId: "switch.bedroom_4node_smart_switch_2_fan", category: "fan", on: false, statusText: "Off" },
   { id: "bedroom.spot light", name: "Spot Light", room: "bedroom", deviceKey: "spot light", entityId: "switch.bedroom_4node_smart_switch_2_spot_light", category: "lighting", on: false, statusText: "Off" },
+  { id: "bedroom.ac", name: "Air Conditioner", room: "bedroom", deviceKey: "ac", entityId: "bedroom_ac_modular", category: "ac", on: false, value: 22, unit: "°C", statusText: "Off" },
 
   // bedroom 2
   { id: "bedroom 2.low ambient light", name: "Low Ambient Light", room: "bedroom 2", deviceKey: "low ambient light", entityId: "switch.bedroom_2_4node_smart_switch_3_low_ambient_light", category: "lighting", on: false, statusText: "Off" },
   { id: "bedroom 2.fan", name: "Fan Switch", room: "bedroom 2", deviceKey: "fan", entityId: "switch.bedroom_2_4node_smart_switch_3_fan", category: "fan", on: false, statusText: "Off" },
   { id: "bedroom 2.spot light", name: "Spot Light", room: "bedroom 2", deviceKey: "spot light", entityId: "switch.bedroom_2_4node_smart_switch_3_spot_light", category: "lighting", on: false, statusText: "Off" },
-  { id: "bedroom 2.high ambient light", name: "High Ambient Light", room: "bedroom 2", deviceKey: "high ambient light", entityId: "switch.bedroom_2_4node_smart_switch_3_high_ambient_light", category: "lighting", on: false, statusText: "Off" }
+  { id: "bedroom 2.high ambient light", name: "High Ambient Light", room: "bedroom 2", deviceKey: "high ambient light", entityId: "switch.bedroom_2_4node_smart_switch_3_high_ambient_light", category: "lighting", on: false, statusText: "Off" },
+  { id: "bedroom 2.ac", name: "Air Conditioner", room: "bedroom 2", deviceKey: "ac", entityId: "bedroom_2_ac_modular", category: "ac", on: false, value: 22, unit: "°C", statusText: "Off" }
 ];
 
 // Centralized User State
@@ -224,7 +227,11 @@ function applyBackendControl(room: string, deviceKey: string | null, action: str
   if (dev) {
     if (action === "turn_on") {
       dev.on = true;
-      dev.statusText = dev.category === "fan" && dev.value ? `Speed ${dev.value}` : "On";
+      if (dev.category === "ac" && dev.value) {
+        dev.statusText = `${dev.value}°C`;
+      } else {
+        dev.statusText = dev.category === "fan" && dev.value ? `Speed ${dev.value}` : "On";
+      }
     } else if (action === "turn_off") {
       dev.on = false;
       dev.statusText = "Off";
@@ -232,6 +239,10 @@ function applyBackendControl(room: string, deviceKey: string | null, action: str
       dev.on = true;
       dev.value = value;
       dev.statusText = `Speed ${value}`;
+    } else if (action === "set_temp" && value !== undefined) {
+      dev.on = true;
+      dev.value = value;
+      dev.statusText = `${value}°C`;
     }
   }
 }
@@ -438,6 +449,17 @@ function parseCommandRuleBased(text: string) {
     }
   }
 
+  // Check AC temperature
+  if ((normalized.includes("ac") || normalized.includes("air conditioner")) && (normalized.includes("temp") || normalized.includes("set") || normalized.includes("to") || normalized.includes("degree"))) {
+    const numMatch = normalized.match(/(\d+)/);
+    if (numMatch) {
+      const temp = parseInt(numMatch[1], 10);
+      commands.push({ room: matchedRoom, device: "ac", action: "set_temp", value: temp });
+      response = `Setting the ${matchedRoom} AC temperature to ${temp}°C.`;
+      return { response, commands };
+    }
+  }
+
   // Detect specific device
   let matchedDevice = "ambient light"; // default fallback
   if (normalized.includes("party")) {
@@ -458,6 +480,8 @@ function parseCommandRuleBased(text: string) {
     matchedDevice = "low ambient light";
   } else if (normalized.includes("high ambient")) {
     matchedDevice = "high ambient light";
+  } else if (normalized.includes("ac") || normalized.includes("air conditioner")) {
+    matchedDevice = "ac";
   } else if (normalized.includes("ambient")) {
     matchedDevice = "ambient light";
   }

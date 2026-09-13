@@ -30,18 +30,21 @@ const INITIAL_DEVICES: Device[] = [
   { id: "dine-in.spot light", name: "Spot Light", room: "dine-in", deviceKey: "spot light", entityId: "switch.dine_in_4sw_modular_touch_spot_light", category: "lighting", on: false, statusText: "Off" },
   { id: "dine-in.low spot light", name: "Low Spot Light", room: "dine-in", deviceKey: "low spot light", entityId: "switch.dine_in_4sw_modular_touch_low_spot_light", category: "lighting", on: false, statusText: "Off" },
   { id: "dine-in.fan", name: "Fan Switch", room: "dine-in", deviceKey: "fan", entityId: "switch.dine_in_4sw_modular_touch_fan", category: "fan", on: false, statusText: "Off" },
+  { id: "dine-in.ac", name: "Air Conditioner", room: "dine-in", deviceKey: "ac", entityId: "dine_in_ac_modular", category: "ac", on: false, value: 22, unit: "°C", statusText: "Off" },
 
   // bedroom
   { id: "bedroom.ambient light", name: "Ambient Light", room: "bedroom", deviceKey: "ambient light", entityId: "switch.bedroom_4node_smart_switch_2_ambient_light", category: "lighting", on: false, statusText: "Off" },
   { id: "bedroom.bedside light", name: "Bedside Light", room: "bedroom", deviceKey: "bedside light", entityId: "switch.bedroom_4node_smart_switch_2_bedside_light", category: "lighting", on: false, statusText: "Off" },
   { id: "bedroom.fan", name: "Fan Switch", room: "bedroom", deviceKey: "fan", entityId: "switch.bedroom_4node_smart_switch_2_fan", category: "fan", on: false, statusText: "Off" },
   { id: "bedroom.spot light", name: "Spot Light", room: "bedroom", deviceKey: "spot light", entityId: "switch.bedroom_4node_smart_switch_2_spot_light", category: "lighting", on: false, statusText: "Off" },
+  { id: "bedroom.ac", name: "Air Conditioner", room: "bedroom", deviceKey: "ac", entityId: "bedroom_ac_modular", category: "ac", on: false, value: 22, unit: "°C", statusText: "Off" },
 
   // bedroom 2
   { id: "bedroom 2.low ambient light", name: "Low Ambient Light", room: "bedroom 2", deviceKey: "low ambient light", entityId: "switch.bedroom_2_4node_smart_switch_3_low_ambient_light", category: "lighting", on: false, statusText: "Off" },
   { id: "bedroom 2.fan", name: "Fan Switch", room: "bedroom 2", deviceKey: "fan", entityId: "switch.bedroom_2_4node_smart_switch_3_fan", category: "fan", on: false, statusText: "Off" },
   { id: "bedroom 2.spot light", name: "Spot Light", room: "bedroom 2", deviceKey: "spot light", entityId: "switch.bedroom_2_4node_smart_switch_3_spot_light", category: "lighting", on: false, statusText: "Off" },
-  { id: "bedroom 2.high ambient light", name: "High Ambient Light", room: "bedroom 2", deviceKey: "high ambient light", entityId: "switch.bedroom_2_4node_smart_switch_3_high_ambient_light", category: "lighting", on: false, statusText: "Off" }
+  { id: "bedroom 2.high ambient light", name: "High Ambient Light", room: "bedroom 2", deviceKey: "high ambient light", entityId: "switch.bedroom_2_4node_smart_switch_3_high_ambient_light", category: "lighting", on: false, statusText: "Off" },
+  { id: "bedroom 2.ac", name: "Air Conditioner", room: "bedroom 2", deviceKey: "ac", entityId: "bedroom_2_ac_modular", category: "ac", on: false, value: 22, unit: "°C", statusText: "Off" }
 ];
 
 // Dynamically creates a 2-second silent WAV file in-memory.
@@ -3409,7 +3412,7 @@ export default function App() {
                   ) as Array<[string, Device[]]>).map(([roomName, roomDevs]) => {
                     const isExpanded = routeInfo.mode === "room" ? true : !!expandedRooms[roomName];
                     const activeCount = roomDevs.filter(d => d.on).length;
-                    
+
                     return (
                       <div 
                         key={roomName} 
@@ -3450,21 +3453,23 @@ export default function App() {
 
                         {isExpanded && (
                           <div className="space-y-2 mt-3 animate-fade-in border-t border-white/5 pt-3">
-                            {roomDevs.map(dev => (
-                              <div 
-                                key={dev.id} 
-                                onClick={(e) => {
-                                  // Only toggle if they didn't click on the range input
-                                  if ((e.target as HTMLElement).tagName !== "INPUT") {
-                                    executeDeviceAction(dev.room, dev.deviceKey, dev.on ? "turn_off" : "turn_on");
-                                  }
-                                }}
-                                className={`p-3 border rounded-xl flex flex-col gap-2 transition-all duration-300 cursor-pointer ${
-                                  dev.on 
-                                    ? "bg-cyan-500/10 border-cyan-500/25 hover:bg-cyan-500/15" 
-                                    : "bg-white/5 hover:bg-white/10 border-white/5 hover:border-white/10"
-                                }`}
-                              >
+                            {roomDevs.map(dev => {
+                              const isDineInAc = dev.room.toLowerCase() === "dine-in" && dev.category === "ac";
+                              return (
+                                <div
+                                  key={dev.id}
+                                  onClick={(e) => {
+                                    // Only toggle if they didn't click on the range input
+                                    if ((e.target as HTMLElement).tagName !== "INPUT") {
+                                      executeDeviceAction(dev.room, dev.deviceKey, dev.on ? "turn_off" : "turn_on");
+                                    }
+                                  }}
+                                  className={`p-3 border rounded-xl flex flex-col gap-2 transition-all duration-300 cursor-pointer ${
+                                    dev.on
+                                      ? "bg-cyan-500/10 border-cyan-500/25 hover:bg-cyan-500/15"
+                                      : "bg-white/5 hover:bg-white/10 border-white/5 hover:border-white/10"
+                                  } ${isDineInAc ? "grayscale opacity-40 pointer-events-none" : ""}`}
+                                >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3">
                                     {getDeviceIcon(dev)}
@@ -4414,18 +4419,21 @@ export default function App() {
             {/* Device Status Flex - Active Only */}
             <div className="w-full max-w-2xl mt-4">
                <div className="flex flex-wrap justify-center gap-2">
-                  {devices.filter(d => d.on).map(dev => (
-                    <div key={dev.id} className="flex items-center px-3 py-1 bg-white/5 border border-white/5 rounded-full gap-2 transition-all hover:bg-white/10">
-                       <div className="w-1 h-1 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]"></div>
-                       <div className="flex items-center gap-1.5">
-                         <span className="text-[8px] font-black text-slate-500 uppercase tracking-tighter">{dev.room}</span>
-                         <span className="text-[10px] font-bold text-slate-200 whitespace-nowrap">{dev.name}</span>
-                       </div>
-                       <span className="text-[8px] font-mono uppercase text-cyan-400/80 bg-cyan-400/10 px-1.5 rounded-full leading-none">
-                         {dev.statusText}
-                       </span>
-                    </div>
-                  ))}
+                  {devices.filter(d => d.on).map(dev => {
+                    const isDineInAc = dev.room.toLowerCase() === "dine-in" && dev.category === "ac";
+                    return (
+                      <div key={dev.id} className={`flex items-center px-3 py-1 bg-white/5 border border-white/5 rounded-full gap-2 transition-all hover:bg-white/10 ${isDineInAc ? "grayscale opacity-40" : ""}`}>
+                         <div className={`w-1 h-1 rounded-full ${isDineInAc ? "bg-slate-500" : "bg-emerald-400 shadow-[0_0_6px_#34d399]"}`}></div>
+                         <div className="flex items-center gap-1.5">
+                           <span className="text-[8px] font-black text-slate-500 uppercase tracking-tighter">{dev.room}</span>
+                           <span className="text-[10px] font-bold text-slate-200 whitespace-nowrap">{dev.name}</span>
+                         </div>
+                         <span className="text-[8px] font-mono uppercase text-cyan-400/80 bg-cyan-400/10 px-1.5 rounded-full leading-none">
+                           {dev.statusText}
+                         </span>
+                      </div>
+                    );
+                  })}
                   {devices.filter(d => d.on).length === 0 && (
                     <p className="text-[10px] text-slate-600 font-mono italic">All systems standby // No active devices</p>
                   )}
